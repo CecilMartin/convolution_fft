@@ -62,8 +62,6 @@ def vel_convolution_fft(scalar, L, x, kernel, periodic, method=1, fft_object=Non
 
 
 def kernel_evaluate_2D(x, y, kernel, periodic, Lx, Ly):
-    nx = x.size
-    ny = y.size
     x_d = np.concatenate((x, x-Lx), axis=None)
     y_d = np.concatenate((y, y-Ly), axis=None)
     grid_x, grid_y = np.meshgrid(x_d, y_d)
