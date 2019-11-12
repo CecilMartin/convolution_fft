@@ -22,22 +22,22 @@ def real(x):
         return np.float64(x)
 
 
-def vel_convolution_fft(scalar, dx, dy, x, y, kernel, periodic, method=1, fft_object=None, ifft_object=None, *args, **kwargs):
+def vel_convolution_fft(scalar, L, x, kernel, periodic, method=1, fft_object=None, ifft_object=None, *args, **kwargs):
     Nshape = scalar.shape
     dim = len(Nshape)
     if dim == 2:
         [ny, nx] = Nshape[:]
-        Lx = nx*dx
-        Ly = ny*dy
+        [Lx, Ly] = L[:]
+        [x, y] = x[:]
         if method == 1:
             scalar_d = np.zeros([2*ny, 2*nx])
             scalar_d[:ny, :nx] = scalar
             y_k_d = kernel_evaluate_2D(x, y, kernel, periodic, Lx, Ly)
             # fftw objects, either a global object or created at every call
-            if fft_object == None & ifft_object == None:
-                a = pyfftw.empty_aligned((ny, nx), dtype='float64')
+            if (fft_object == None) & (ifft_object == None):
+                a = pyfftw.empty_aligned((2*ny, 2*nx), dtype='float64')
                 # Save efforts by knowing that a is real
-                b = pyfftw.empty_aligned((ny, nx//2+1), dtype='complex128')
+                b = pyfftw.empty_aligned((2*ny, nx+1), dtype='complex128')
                 # Real to complex FFT Over the both axes
                 fft_object = pyfftw.FFTW(a, b, axes=(
                     0, 1), flags=('FFTW_MEASURE', ))
@@ -50,9 +50,9 @@ def vel_convolution_fft(scalar, dx, dy, x, y, kernel, periodic, method=1, fft_ob
             scalar_d_hat = copy.deepcopy(fft_object())
             a[:][:] = y_k_d
             y_k_d_hat = copy.deepcopy(fft_object())
-            b[:][:] = np.dot(scalar_d_hat, y_k_d_hat)
+            b[:][:] = scalar_d_hat * y_k_d_hat
             v = copy.deepcopy(ifft_object())
-            return v
+            return v[:ny, :nx]
 
     elif dim == 3:
         raise Exception('Haven\'t implemented convolution for %dD!' % dim)
@@ -68,7 +68,6 @@ def kernel_evaluate_2D(x, y, kernel, periodic, Lx, Ly):
     y_d = np.concatenate((y, y-Ly), axis=None)
     grid_x, grid_y = np.meshgrid(x_d, y_d)
     periodic_flag = ~(periodic == 0)
-    scalar_d = np.zeros([2*ny, 2*nx])
     scalar_d = kernel(grid_x, grid_y)
     if periodic_flag[0]:
         for i in range(periodic[0]):
