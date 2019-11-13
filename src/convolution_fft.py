@@ -42,7 +42,7 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
     Nshape = scalar.shape
     dim = len(Nshape)
     if dim == 1:
-        nx = Nshape[:]
+        nx = Nshape[0]
         if method == 1:
             scalar_d = np.zeros(2*nx)
             scalar_d[:nx] = scalar
@@ -124,10 +124,10 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
 def kernel_evaluate(x, kernel, periodic, L):
     dim = len(L)
     if dim == 1:
-        Lx = L[:]
-        x = x[:]
+        Lx = L[0]
+        x = x[0]
         x_d = np.concatenate((x, x-Lx), axis=None)
-        periodic_flag = ~([periodic == 0])
+        periodic_flag = ~(periodic == 0)
         scalar_d = kernel(x_d)
         if periodic_flag[0]:
             for i in range(periodic[0]):

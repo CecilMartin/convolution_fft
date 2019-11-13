@@ -38,3 +38,26 @@ v = conv.vel_convolution_fft(scalar, L=[Lx,Ly], x=[x,y], kernel_handle=kernel.ke
 
 # judge whether this test is successful
 print(np.allclose(v,np.ones([ny,nx])*ny*nx*(1+2*periodic[0])*(1+2*periodic[1])))
+
+# 1D
+
+if method == 1:
+    a = pyfftw.empty_aligned((2*nx), dtype='float64')
+    # Save efforts by knowing that a is real
+    b = pyfftw.empty_aligned((nx+1), dtype='complex128')
+    # Real to complex FFT Over the both axes
+    fft_object = pyfftw.FFTW(a, b, axes=(
+        -1,), flags=('FFTW_MEASURE', ))
+    ifft_object = pyfftw.FFTW(b, a, axes=(
+        -1,), direction='FFTW_BACKWARD', flags=('FFTW_MEASURE', 'FFTW_DESTROY_INPUT'))
+else:
+    raise Exception('Only Method = 1 is supported now.')
+
+scalar = np.ones(nx)
+
+v = conv.vel_convolution_fft(scalar, L=[Lx], x=[x], kernel_handle=kernel.kernel_uniform_1D,
+                             periodic=periodic[1:], fft_object=fft_object, ifft_object=ifft_object)
+
+# judge whether this test is successful
+print(np.allclose(v, np.ones(nx) *
+                  nx*(1+2*periodic[1])))
