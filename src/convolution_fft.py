@@ -41,7 +41,43 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
 
     Nshape = scalar.shape
     dim = len(Nshape)
-    if dim == 2:
+    if dim == 1:
+        nx = Nshape[:]
+        if method == 1:
+            scalar_d = np.zeros(2*nx)
+            scalar_d[:nx] = scalar
+            # fftw objects, either a global object or created at every call
+            if ('fft_object' in kwargs) & ('ifft_object' in kwargs):
+                fft_object = kwargs['fft_object']
+                ifft_object = kwargs['ifft_object']
+                a = fft_object.input_array
+                b = fft_object.output_array
+            else:
+                a = pyfftw.empty_aligned((2*nx), dtype='float64')
+                # Save efforts by knowing that a is real
+                b = pyfftw.empty_aligned((nx+1), dtype='complex128')
+                # Real to complex FFT Over the both axes
+                fft_object = pyfftw.FFTW(a, b, axes=(
+                    -1,), flags=('FFTW_MEASURE', ))
+                ifft_object = pyfftw.FFTW(b, a, axes=(
+                    -1,), direction='FFTW_BACKWARD', flags=('FFTW_MEASURE', 'FFTW_DESTROY_INPUT'))
+            if kernel_flag == 0:
+                a[:] = kernel
+                kernel_hat = copy.deepcopy(fft_object())
+            elif kernel_flag == 1:
+                kernel = kernel_evaluate(x, kernel_handle, periodic, L)
+                a[:] = kernel
+                kernel_hat = copy.deepcopy(fft_object())
+            elif kernel_flag == 2:
+                pass
+
+            a[:] = scalar_d
+            scalar_d_hat = copy.deepcopy(fft_object())
+
+            b[:] = scalar_d_hat * kernel_hat
+            v = copy.deepcopy(ifft_object())
+            return v[:nx]
+    elif dim == 2:
         [ny, nx] = Nshape[:]
         if method == 1:
             scalar_d = np.zeros([2*ny, 2*nx])
@@ -87,6 +123,17 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
 
 def kernel_evaluate(x, kernel, periodic, L):
     dim = len(L)
+    if dim == 1:
+        Lx = L[:]
+        x = x[:]
+        x_d = np.concatenate((x, x-Lx), axis=None)
+        periodic_flag = ~([periodic == 0])
+        scalar_d = kernel(x_d)
+        if periodic_flag[0]:
+            for i in range(periodic[0]):
+                scalar_d = scalar_d + kernel(x_d+(i+1)*Lx)
+                scalar_d = scalar_d + kernel(x_d-(i+1)*Lx)
+        return scalar_d
     if dim == 2:
         Lx, Ly = L[:]
         x, y = x[:]
