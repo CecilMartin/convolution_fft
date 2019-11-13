@@ -18,18 +18,32 @@ You could find more detail in computation and numerics in this [report](https://
 
 5. Double and single precision are provided. (TODO)
 
+6. Kernel could be given as a function handle that been evaluated every time that this function was called, or as a numpy.ndarray so that evaluation of kernel is only computed one time, or even as its fft so that effort to compute its fft is saved.
+
 ## Parameters
 
-vel_convolution_fft(scalar, L, x, kernel, periodic, method=1, fft_object=None, ifft_object=None, *args, **kwargs)
+vel_convolution_fft(scalar, method=1, *args, **kwargs)
 
 1. scalar: This is the field that is convolved. dtype = numpy.narray, dim=1,2,3. Shape = [Nx] or [Ny,Nx] or [Ny,Nx,Nz]. 
 
-2. L: length of the computing boxes, L=[Lx] or [Lx,Ly] or [Lx,Ly,Lz].
+2. Method = 1(default) or 2, representing method 1 or 2 in the report accordingly.
 
-3. x: grid of each dimension, numpy.narray, x=[grid_x] or [grid_x,grid_y] or [grid_x,grid_y,grid_z].
+Moreover, there's keyword arguments that is used for features about kernel and fftw objects
 
-4. kernel: function handle of the kernel, kernel(x,y), multidimention of x and y should be supported.
+For kernel, there's three options,
 
-5. Method: 1 or 2, representing method 1 or 2 in the report accordingly.
+3. Given numpy.ndarray of the kernel, which would avoid evaluating the kernel every time the function is called.\
+3.1. kernel = kernel: numpy.ndarray. It should be evaluated with double size of scalar, and periodic summation should have done.
 
-6. fft_object, ifft_object: pyfftw object, default is None. If they are not specified, the fftw object would be created every time this function is called. If they are given, the fftw objects would be used every time this function is called, which would save lots of time for planning fftw objects.
+4. Given function handle of the kernel, the kernel would be evaluated inside the routine.\
+4.1. L=L: length of the computing boxes, L=[Lx] or [Lx,Ly] or [Lx,Ly,Lz].\
+4.2. x=x: grid of each dimension, numpy.narray, x=[grid_x] or [grid_x,grid_y] or [grid_x,grid_y,grid_z].\
+4.3. kernel_handle=kernel_handle: function handle of the kernel, kernel_handle(x(,y(,z))), multidimention of x, y and z should be supported.\
+4.4. periodic=periodic: numpy.ndarray, size is dimension. Peridic BC of each dimension. 0 represents a-periodic, n>0 means it is periodic and truncated at n images on both sides of the periodic summation, i.e. [-n,...,0,...,n].  
+
+5. Given fft of the periodic summation kernel.\
+5.1. kernel_hat=kernel_hat: numpy.ndarray. It should be double the size of scalar and is fft of the periodic summation of kernel, which would save the effort to compute the fft of kernel every time the function is called.
+
+For fftw objects, we could pass global objects to the routine so that it won't plan a object this function is called, which would cost a lot.
+
+6. fft_object, ifft_object:  If they are not specified, the fftw object would be created every time this function is called. If they are given, the fftw objects would be used every time this function is called, which would save lots of time for planning fftw objects. Wisdom mechanism of FFTW is utilized here.

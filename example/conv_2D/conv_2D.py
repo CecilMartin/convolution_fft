@@ -33,8 +33,8 @@ else:
 
 scalar = np.ones([ny, nx])
 
-v = conv.vel_convolution_fft(scalar, [Lx,Ly], [x,y], kernel.kernel_uniform_2D,
-                             periodic, method=1, fft_object=fft_object, ifft_object=ifft_object)
+v = conv.vel_convolution_fft(scalar, L=[Lx,Ly], x=[x,y], kernel_handle=kernel.kernel_uniform_2D,
+                             periodic=periodic, fft_object=fft_object, ifft_object=ifft_object)
 
 # judge whether this test is successful
 print(np.allclose(v,np.ones([ny,nx])*ny*nx*(1+2*periodic[0])*(1+2*periodic[1])))
