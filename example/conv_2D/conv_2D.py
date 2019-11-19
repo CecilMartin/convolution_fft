@@ -5,7 +5,7 @@ import sys
 sys.path.append('/home/cecil/Cecil/Projects/convolution_fft/src')
 import pyfftw
 import multiprocessing
-import copy
+# import copy
 import numpy as np
 import kernel.kernel as kernel
 import convolution_fft as conv

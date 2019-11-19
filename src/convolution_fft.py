@@ -1,6 +1,6 @@
 from __future__ import division, print_function
 import numpy as np
-import copy
+# import copy
 import multiprocessing
 import pyfftw
 # Configure PyFFTW to use all cores (the default is single-threaded)
@@ -13,7 +13,7 @@ pyfftw.config.NUM_THREADS = multiprocessing.cpu_count()
 # after   'mod = SourceModule("""'    accordingly
 # precision = 'single'
 precision = 'double'
-
+# Only double precision is implemented for now
 
 def real(x):
     if precision == 'single':
@@ -63,19 +63,19 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
                     -1,), direction='FFTW_BACKWARD', flags=('FFTW_MEASURE', 'FFTW_DESTROY_INPUT'))
             if kernel_flag == 0:
                 a[:] = kernel
-                kernel_hat = copy.deepcopy(fft_object())
+                kernel_hat = (fft_object()).copy()
             elif kernel_flag == 1:
                 kernel = kernel_evaluate(x, kernel_handle, periodic, L)
                 a[:] = kernel
-                kernel_hat = copy.deepcopy(fft_object())
+                kernel_hat = (fft_object()).copy()
             elif kernel_flag == 2:
                 pass
 
             a[:] = scalar_d
-            scalar_d_hat = copy.deepcopy(fft_object())
+            scalar_d_hat = (fft_object()).copy()
 
             b[:] = scalar_d_hat * kernel_hat
-            v = copy.deepcopy(ifft_object())
+            v = ifft_object()).copy()
             return v[:nx]
     elif dim == 2:
         [ny, nx] = Nshape[:]
@@ -99,19 +99,19 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
                     0, 1), direction='FFTW_BACKWARD', flags=('FFTW_MEASURE', 'FFTW_DESTROY_INPUT'))
             if kernel_flag == 0:
                 a[:][:] = kernel
-                kernel_hat = copy.deepcopy(fft_object())
+                kernel_hat = (fft_object()).copy()
             elif kernel_flag == 1:
                 kernel = kernel_evaluate(x, kernel_handle, periodic, L)
                 a[:][:] = kernel
-                kernel_hat = copy.deepcopy(fft_object())
+                kernel_hat = (fft_object()).copy()
             elif kernel_flag == 2:
                 pass
 
             a[:][:] = scalar_d
-            scalar_d_hat = copy.deepcopy(fft_object())
+            scalar_d_hat = (fft_object()).copy()
 
             b[:][:] = scalar_d_hat * kernel_hat
-            v = copy.deepcopy(ifft_object())
+            v = (ifft_object()).copy()
             return v[:ny, :nx]
 
     elif dim == 3:
@@ -137,19 +137,19 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
                     0, 1, 2), direction='FFTW_BACKWARD', flags=('FFTW_MEASURE', 'FFTW_DESTROY_INPUT'))
             if kernel_flag == 0:
                 a[:][:][:] = kernel
-                kernel_hat = copy.deepcopy(fft_object())
+                kernel_hat = (fft_object()).copy()
             elif kernel_flag == 1:
                 kernel = kernel_evaluate(x, kernel_handle, periodic, L)
                 a[:][:][:] = kernel
-                kernel_hat = copy.deepcopy(fft_object())
+                kernel_hat = (fft_object()).copy()
             elif kernel_flag == 2:
                 pass
 
             a[:][:][:] = scalar_d
-            scalar_d_hat = copy.deepcopy(fft_object())
+            scalar_d_hat = (fft_object()).copy()
 
             b[:][:][:] = scalar_d_hat * kernel_hat
-            v = copy.deepcopy(ifft_object())
+            v = (ifft_object()).copy()
             return v[:ny, :nx, :nz]
     else:
         raise Exception('Haven\'t implemented convolution for %dD!' % dim)
