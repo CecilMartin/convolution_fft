@@ -3,6 +3,7 @@ from __future__ import division, print_function
 import pyfftw
 import multiprocessing
 import numpy as np
+# from numba import jit
 import sys
 sys.path.append('~/Cecil/Projects/convolution_fft/src')
 # sys.path.append('/home/cecil/Cecil/Projects/convolution_fft/src')
@@ -75,7 +76,6 @@ def kernel_hat_z_trans_variant(x, kernel_handle, periodic, L, fft_object):
         a[:] = kernel[i, :, :, :]
         kernel_hat[i, :, :, :] = (fft_object())
     return kernel_hat
-
 
 def vel_convolution_fft_z_trans_variant(scalar, method=1, *args, **kwargs):
     if 'kernel' in kwargs:

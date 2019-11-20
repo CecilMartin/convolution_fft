@@ -4,6 +4,8 @@
 
 This library is aimed to developing a fast fft-based method to compute convolution with mix-boundary condition, i.e. some dimension is periodic while the other is not. Basically, it uses a trick to double zerod-padding the non-periodic dimension and then utilize FFT method to do the convolution. As for the periodic dimension, we could use periodic summation to mimic periodicity. Moreover, if analytic fourier transform or the kernel that being convolved is given or its asymtopic approximation function's analytic FT is given, the cost of periodic summation could be reduced or even eliminated.
 
+However, for situation where 3D kernel is not translational invariant in z direction, naive FFT in 3D will not work since the kernel does not only depend on z-z0. Therefore, we provide another module convolution_fft_z_trans_variant that deal with such situation. Consider a system of Nx*Ny*Nz, interaction between any two layers in z direction is computed by 2D fft method, and then adds up all Nz layers' contribution to the target layer. Thus, kernel should be evaulated as Nz*Ny*Nx*Nz. Moreover, the 3 kernel options and fftw objects options are provides too. 
+
 You could find more detail in computation and numerics in this [report](https://github.com/CecilMartin/convolution_fft/blob/master/doc/FFT_Conv.pdf).
 
 ## Features
@@ -19,6 +21,8 @@ You could find more detail in computation and numerics in this [report](https://
 5. Double and single precision are provided. (TODO)
 
 6. Kernel could be given as a function handle that been evaluated every time that this function was called, or as a numpy.ndarray so that evaluation of kernel is only computed one time, or even as its fft so that effort to compute its fft is saved.
+
+7. We also provide features to deal with situation where 3D kernel is not translational invariant in z direction
 
 ## Parameters
 
@@ -47,3 +51,4 @@ For kernel, there's three options,
 For fftw objects, we could pass global objects to the routine so that it won't plan a object this function is called, which would cost a lot.
 
 6. fft_object, ifft_object:  If they are not specified, the fftw object would be created every time this function is called. If they are given, the fftw objects would be used every time this function is called, which would save lots of time for planning fftw objects. Wisdom mechanism of FFTW is utilized here.
+
