@@ -75,7 +75,7 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
             scalar_d_hat = (fft_object()).copy()
 
             b[:] = scalar_d_hat * kernel_hat
-            v = ifft_object()).copy()
+            v = (ifft_object()).copy()
             return v[:nx]
     elif dim == 2:
         [ny, nx] = Nshape[:]
