@@ -1,5 +1,6 @@
 from __future__ import division, print_function
 import numpy as np
+import finufftpy 
 # import copy
 import multiprocessing
 import pyfftw
@@ -155,6 +156,43 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
         raise Exception('Haven\'t implemented convolution for %dD!' % dim)
     return 0
 
+
+def vel_convolution_nufft(scalar, source_strenth, num_modes, L,  eps=1e-8, method=1, *args, **kwargs):
+    if('kernel_hat' in kwargs):
+        kernel_hat = kwargs['kernel_hat']
+        assert isinstance(kernel_hat, np.ndarray)
+    else:
+        raise Exception(
+            'kernel_hat, fourier transform of kernel should be given')
+
+    Nshape = scalar.shape
+    dim = Nshape[0]
+    assert dim == 2, "Dim should be 2!"
+    nx, ny = num_modes[:]
+    if method == 1:
+        xj, yj = scalar
+        nj = len(xj)
+        xmin = xj.min()
+        xmax = xj.max()
+        ymin = yj.min()
+        ymax = yj.max()
+        Lx, Ly = L
+        assert ((xmax-xmin) <= Lx) & ((ymax-ymin) <= Ly), "All particles should be limieted to given [Lx,Ly] box!"
+        # double zero-padding the delta function and scale it into [-pi,pi)
+        xj = (xj-(xmax+xmin)/2)/Lx*np.pi
+        yj = (yj-(ymax+ymin)/2)/Ly*np.pi
+        fk = np.zeros(num_modes, dtype=np.complex128, order='F')
+        # particle locations change at every iteration, no need to reuse fftw object
+        ret = finufftpy.nufft2d1(xj, yj, source_strenth, -1, eps, nx, ny, fk, modeord=1)
+        assert ret == 0, "NUFFT not successful!"
+        v_hat = np.zeros((nx, ny, 2), order='F', dtype=np.complex128)
+        v_hat[:, :, 0] = fk * kernel_hat[0]
+        v_hat[:, :, 1] = fk * kernel_hat[1]
+        v = np.zeros((nj, 2), order='F', dtype=np.complex128)
+        ret = finufftpy.nufft2d2many(xj, yj, v, 1, eps, v_hat, modeord=1)
+        assert ret == 0, "NUFFT not successful!"
+        v = np.real(v)/(2*Lx*2*Ly)  # Real?
+        return v
 
 def kernel_evaluate(x, kernel, periodic, L):
     dim = len(L)
