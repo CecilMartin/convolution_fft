@@ -121,7 +121,8 @@ L = [Lx, Ly]
 
 v = conv.vel_convolution_nufft(scalar, source_strenth, num_modes, L, kernel_hat = kernel_hat)
 print(np.allclose(v, np.ones([nj, 2]) * nj * (1+2*periodic[0])*(1+2*periodic[1])))
-
+v_direct = conv.vel_direct_convolution(scalar,source_strenth,kernel.kernel_uniform_2D, L, periodic)
+print(np.allclose(v,v_direct))
 #%%
 # 2D NUFFT based-particles
 nj = 64

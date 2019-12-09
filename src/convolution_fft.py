@@ -194,6 +194,25 @@ def vel_convolution_nufft(scalar, source_strenth, num_modes, L,  eps=1e-8, metho
         v = np.real(v)/(2*Lx*2*Ly)  # Real?
         return v
 
+def vel_direct_convolution(scalar, source_strenth, kernel_handle, L, periodic):
+    Np = len(source_strenth)
+    dim = len(L)
+    v = np.zeros(Np)
+    if dim == 2:
+        x, y = scalar[:]
+        for i in range(Np):
+            for j in range(Np):
+                kernel_index_x, kernel_index_y = np.meshgrid(np.linspace(-periodic[0],periodic[0],2*periodic[0]+1),np.linspace(-periodic[1],periodic[1],2*periodic[1]+1), indexing = 'ij')
+                xd = x[i]-x[j]-L[0]*kernel_index_x
+                yd = y[i]-y[j]-L[1]*kernel_index_y
+                kernel = kernel_handle(xd,yd).sum()
+                v[i] += kernel * source_strenth[j]
+    else:
+        raise Exception("Not implemented yet!")
+    return v
+        
+    
+    
 def kernel_evaluate(x, kernel, periodic, L):
     dim = len(L)
     if dim == 1:
