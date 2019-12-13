@@ -213,7 +213,7 @@ def vel_direct_convolution(scalar, source_strenth, kernel_handle, L, periodic):
         
     
     
-def kernel_evaluate(x, kernel, periodic, L):
+def kernel_evaluate(x, kernel, periodic, L, indexing = 'xy'):
     dim = len(L)
     if dim == 1:
         Lx = L[0]
@@ -231,7 +231,7 @@ def kernel_evaluate(x, kernel, periodic, L):
         x, y = x[:]
         x_d = np.concatenate((x, x-Lx), axis=None)
         y_d = np.concatenate((y, y-Ly), axis=None)
-        grid_x, grid_y = np.meshgrid(x_d, y_d)
+        grid_x, grid_y = np.meshgrid(x_d, y_d, indexing = indexing)
         periodic_flag = ~(periodic == 0)
         scalar_d = kernel(grid_x, grid_y)
         if periodic_flag[0]:
@@ -261,7 +261,7 @@ def kernel_evaluate(x, kernel, periodic, L):
         x_d = np.concatenate((x, x-Lx), axis=None)
         y_d = np.concatenate((y, y-Ly), axis=None)
         z_d = np.concatenate((z, z-Lz), axis=None)
-        grid_x, grid_y, grid_z = np.meshgrid(x_d, y_d, z_d)
+        grid_x, grid_y, grid_z = np.meshgrid(x_d, y_d, z_d, indexing = indexing)
         periodic_flag = ~(periodic == 0)
         scalar_d = kernel(grid_x, grid_y, grid_z)
         if periodic_flag[0]:
