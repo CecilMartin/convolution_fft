@@ -12,6 +12,9 @@ import convolution_fft as conv
 
 #%%
 # 2D NUFFT based-particles
+# Randomly distributed particle
+# Constant source_strenth with constant kernel
+# kernel_flag = 2
 nj = 16
 Lx, Ly = [10, 10]
 nx = ny = int(np.ceil(np.sqrt(nj)*5))
@@ -41,6 +44,9 @@ v_direct = conv.vel_direct_convolution(scalar,source_strenth,kernel_mod.kernel_u
 print(np.allclose(v[:,0],v_direct))
 #%%
 # 2D NUFFT based-particles
+# Uniformly distributed particle
+# Constant source_strenth with constant kernel
+# kernel_flag = 2
 nj = 64
 Lx, Ly = [10, 10]
 nx = ny = 8
@@ -75,10 +81,12 @@ print(np.allclose(v[:,0],v_direct))
 
 #%%
 # 2D NUFFT based-particles
-
+# Uniformly distributed particle
+# Constant source_strenth with Gaussian kernel
+# kernel_flag = 2
 nj = 64
 Lx, Ly = [10, 10]
-nx = ny = 8
+nx = ny = 16
 x = (np.linspace(0, nx-1, nx)+0.5)*Lx/nx
 y = (np.linspace(0, ny-1, ny)+0.5)*Ly/ny
 x,y = np.meshgrid(x,y,indexing = 'ij')
@@ -114,6 +122,9 @@ print(np.sqrt(np.sum(np.power(v[:,0]-v_direct,2)))/np.sqrt(np.sum(v_direct**2)))
 
 #%%
 # 2D NUFFT based-particles
+# Randomly distributed particle
+# Constant source_strenth with Gaussian kernel
+# kernel_flag = 2
 
 nj = 16
 Lx, Ly = [10, 10]

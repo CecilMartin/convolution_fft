@@ -11,6 +11,8 @@ import kernel.kernel as kernel_mod
 import convolution_fft as conv
 
 # %%
+# Convolution of constant scalar with constant kernel in 2D
+# kernel_flag = 1
 nx, ny = [4, 4]
 Lx, Ly = [10, 10]
 dx, dy = [Lx/nx, Ly/ny]
@@ -40,7 +42,8 @@ print(np.allclose(v,np.ones([ny,nx])*ny*nx*(1+2*periodic[0])*(1+2*periodic[1])))
 
 
 # %%
-# 1D
+# Convolution of constant scalar with constant kernel in 1D
+# kernel_flag = 1
 
 if method == 1:
     a = pyfftw.empty_aligned((2*nx), dtype='float64')
@@ -65,7 +68,8 @@ print(np.allclose(v, np.ones(nx) *
 
 
 # %%
-# 2D
+# Convolution of constant scalar with constant kernel in 2D
+# kernel_flag = 0
 nx, ny = [4, 4]
 Lx, Ly = [10, 10]
 dx, dy = [Lx/nx, Ly/ny]
@@ -80,7 +84,8 @@ print(np.allclose(v, np.ones([ny, nx])*ny *
 
 
 #%%
-# 3D
+# Convolution of constant scalar with constant kernel in 3D
+# kernel_flag = 0
 nx, ny, nz = [4, 4, 4]
 Lx, Ly, Lz= [10, 10, 10]
 dx, dy, dz = [Lx/nx, Ly/ny, Lz/nz]

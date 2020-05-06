@@ -14,6 +14,10 @@ import convolution_fft as conv
 
 
 def kernel_evaluate_z_trans_variant(x, kernel_handle, periodic, L):
+    """ Evaluate kernel on given grid
+    1, 2, 3D are accepted.
+    The kernel is translationally variant in z-direction
+    """
     dim = len(x)
     assert dim == 3, "Dim should be 3!"
     Lx, Ly, Lz = L[:]
@@ -64,6 +68,10 @@ def kernel_evaluate_z_trans_variant(x, kernel_handle, periodic, L):
 
 
 def kernel_hat_z_trans_variant(x, kernel_handle, periodic, L, fft_object):
+    """ Fourier transform of kernel on given grid
+    1, 2, 3D are accepted.
+    This kernel is translationally variant in z.
+    """
     dim = len(x)
     assert dim == 3, "Dim should be 3!"
     nx = x[0].size
@@ -78,11 +86,17 @@ def kernel_hat_z_trans_variant(x, kernel_handle, periodic, L, fft_object):
     return kernel_hat
 
 def vel_convolution_fft_z_trans_variant(scalar, method=1, *args, **kwargs):
+    """ Compute convolution of given 'scalar' with kernel, 
+    dimension of 1, 2, 3 is accepted. 
+    """
+
     if 'kernel' in kwargs:
+        # User provides with evaluated kernel 
         kernel = kwargs['kernel']
         kernel_flag = 0  # doubled kernel is provided
         assert isinstance(kernel, np.ndarray)
     elif ('kernel_handle' in kwargs) & ('L' in kwargs) & ('x' in kwargs) & ('periodic' in kwargs):
+        # User provides with hernel function handle.
         kernel_handle = kwargs['kernel_handle']
         L = kwargs['L']
         x = kwargs['x']
@@ -90,6 +104,7 @@ def vel_convolution_fft_z_trans_variant(scalar, method=1, *args, **kwargs):
         kernel_flag = 1  # given kernel handle
         assert callable(kernel_handle)
     elif ('kernel_hat' in kwargs):
+        # User provides with Fourier transform of the kernel
         kernel_hat = kwargs['kernel_hat']
         kernel_flag = 2  # given fft of kernel
         assert isinstance(kernel_hat, np.ndarray)
@@ -109,7 +124,7 @@ def vel_convolution_fft_z_trans_variant(scalar, method=1, *args, **kwargs):
             a = fft_object.input_array
             b = fft_object.output_array
         else:
-            a = pyfftw.empty_aligned((2*ny, 2*nx, nz), dtype='float64')
+            a = pyfftw.empty_aligned((2*ny, 2*nx, nz), dtype='float64') # Double zero-pad in x and y to do method 1
             # Save efforts by knowing that a is real
             b = pyfftw.empty_aligned(
                 (2*ny, nx+1, nz), dtype='complex128')
@@ -118,6 +133,8 @@ def vel_convolution_fft_z_trans_variant(scalar, method=1, *args, **kwargs):
                 0, 1), flags=('FFTW_MEASURE', ))
             ifft_object = pyfftw.FFTW(b, a, axes=(
                 0, 1), direction='FFTW_BACKWARD', flags=('FFTW_MEASURE', 'FFTW_DESTROY_INPUT'))
+
+        # To get the Fourier transform of the kernel
         if kernel_flag == 0:
             kernel_hat = np.zeros((nz, 2*ny, nx+1, nz), dtype=complex)
             for i in range(nz):
@@ -128,7 +145,8 @@ def vel_convolution_fft_z_trans_variant(scalar, method=1, *args, **kwargs):
                 x, kernel_handle, periodic, L, fft_object)
         elif kernel_flag == 2:
             pass
-
+        
+        # Fourier transform of the scalar
         a[:][:][:] = scalar_d
         scalar_d_hat = (fft_object()).copy()
         v = np.zeros((ny, nx, nz))

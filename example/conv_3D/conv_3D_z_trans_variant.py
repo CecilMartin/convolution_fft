@@ -11,6 +11,7 @@ import kernel.kernel as kernel_mod
 import convolution_fft_z_trans_variant as conv
 
 # %%
+# Test of convolution of constant scalar wiht constant kernel in 3D
 # kernel_flag = 1
 nx, ny, nz = [4, 4, 2]
 Lx, Ly, Lz = [10, 10, 5]
@@ -42,6 +43,7 @@ print(np.allclose(v,np.ones([ny,nx,nz])*ny*nx*nz*(1+2*periodic[0])*(1+2*periodic
 
 
 # %%
+# Test of convolution of constant scalar wiht constant kernel in 3D
 # kernel_flag = 0 
 nx, ny, nz = [4, 4, 2]
 Lx, Ly, Lz = [10, 10, 5]
@@ -59,6 +61,7 @@ print(np.allclose(v,np.ones([ny,nx,nz])*ny*nx*nz*(1+2*periodic[0])*(1+2*periodic
 
 
 #%%
+# Test of convolution of constant scalar wiht constant kernel in 3D
 # kernel_flag =2
 nx, ny, nz = [4, 4, 2]
 Lx, Ly, Lz = [10, 10, 5]

@@ -14,9 +14,9 @@ pyfftw.config.NUM_THREADS = multiprocessing.cpu_count()
 # after   'mod = SourceModule("""'    accordingly
 # precision = 'single'
 precision = 'double'
-# Only double precision is implemented for now
+# Only double precision is implemented for now, TODO
 
-def real(x):
+def real(x): # TODO, this is the function to choose single or double
     if precision == 'single':
         return np.float32(x)
     else:
@@ -24,11 +24,16 @@ def real(x):
 
 
 def vel_convolution_fft(scalar, method=1, *args, **kwargs):
+    """ Compute convolution of given 'scalar' with kernel, 
+    dimension of 1, 2, 3 is accepted. 
+    """
     if 'kernel' in kwargs:
+        # User provides with evaluated kernel 
         kernel = kwargs['kernel']
         kernel_flag = 0  # doubled kernel is provided
         assert isinstance(kernel, np.ndarray)
     elif ('kernel_handle' in kwargs) & ('L' in kwargs) & ('x' in kwargs) & ('periodic' in kwargs):
+        # User provides with hernel function handle.
         kernel_handle = kwargs['kernel_handle']
         L = kwargs['L']
         x = kwargs['x']
@@ -36,6 +41,7 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
         kernel_flag = 1  # given kernel handle
         assert callable(kernel_handle)
     elif ('kernel_hat' in kwargs):
+        # User provides with Fourier transform of the kernel
         kernel_hat = kwargs['kernel_hat']
         kernel_flag = 2  # given fft of kernel
         assert isinstance(kernel_hat, np.ndarray)
@@ -43,17 +49,21 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
     Nshape = scalar.shape
     dim = len(Nshape)
     if dim == 1:
+        # One dimension 
         nx = Nshape[0]
         if method == 1:
-            scalar_d = np.zeros(2*nx)
+            scalar_d = np.zeros(2*nx) # Double zero-pad to do method 1
             scalar_d[:nx] = scalar
             # fftw objects, either a global object or created at every call
             if ('fft_object' in kwargs) & ('ifft_object' in kwargs):
+                # fftw objects is passed as input, it's used globally
                 fft_object = kwargs['fft_object']
                 ifft_object = kwargs['ifft_object']
                 a = fft_object.input_array
                 b = fft_object.output_array
             else:
+                # fftw object is created every time this function is called, 
+                # suitable for situation where Foutier modes change at every time step
                 a = pyfftw.empty_aligned((2*nx), dtype='float64')
                 # Save efforts by knowing that a is real
                 b = pyfftw.empty_aligned((nx+1), dtype='complex128')
@@ -62,26 +72,31 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
                     -1,), flags=('FFTW_MEASURE', ))
                 ifft_object = pyfftw.FFTW(b, a, axes=(
                     -1,), direction='FFTW_BACKWARD', flags=('FFTW_MEASURE', 'FFTW_DESTROY_INPUT'))
+            
+            # To get the Fourier transform of the kernel
             if kernel_flag == 0:
                 a[:] = kernel
                 kernel_hat = (fft_object()).copy()
             elif kernel_flag == 1:
+                # kernel needs to  be evaluated
                 kernel = kernel_evaluate(x, kernel_handle, periodic, L)
                 a[:] = kernel
                 kernel_hat = (fft_object()).copy()
             elif kernel_flag == 2:
                 pass
 
+            # Fourier transform of the scalar
             a[:] = scalar_d
             scalar_d_hat = (fft_object()).copy()
-
             b[:] = scalar_d_hat * kernel_hat
             v = (ifft_object()).copy()
+
             return v[:nx]
     elif dim == 2:
+        # two dimension
         [ny, nx] = Nshape[:]
         if method == 1:
-            scalar_d = np.zeros([2*ny, 2*nx])
+            scalar_d = np.zeros([2*ny, 2*nx]) # Double zero-pad to do method 1
             scalar_d[:ny, :nx] = scalar
             # fftw objects, either a global object or created at every call
             if ('fft_object' in kwargs) & ('ifft_object' in kwargs):
@@ -98,6 +113,8 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
                     0, 1), flags=('FFTW_MEASURE', ))
                 ifft_object = pyfftw.FFTW(b, a, axes=(
                     0, 1), direction='FFTW_BACKWARD', flags=('FFTW_MEASURE', 'FFTW_DESTROY_INPUT'))
+            
+            # To get the Fourier transform of the kernel
             if kernel_flag == 0:
                 a[:][:] = kernel
                 kernel_hat = (fft_object()).copy()
@@ -108,6 +125,7 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
             elif kernel_flag == 2:
                 pass
 
+            # Fourier transform of the scalar
             a[:][:] = scalar_d
             scalar_d_hat = (fft_object()).copy()
 
@@ -116,9 +134,10 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
             return v[:ny, :nx]
 
     elif dim == 3:
+        # three dimension
         [ny, nx, nz] = Nshape[:]
         if method == 1:
-            scalar_d = np.zeros([2*ny, 2*nx, 2*nz])
+            scalar_d = np.zeros([2*ny, 2*nx, 2*nz]) # Double zero-pad to do method 1
             scalar_d[:ny, :nx, :nz] = scalar
             # fftw objects, either a global object or created at every call
             if ('fft_object' in kwargs) & ('ifft_object' in kwargs):
@@ -136,6 +155,8 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
                     0, 1, 2), flags=('FFTW_MEASURE', ))
                 ifft_object = pyfftw.FFTW(b, a, axes=(
                     0, 1, 2), direction='FFTW_BACKWARD', flags=('FFTW_MEASURE', 'FFTW_DESTROY_INPUT'))
+            
+            # To get the Fourier transform of the kernel
             if kernel_flag == 0:
                 a[:][:][:] = kernel
                 kernel_hat = (fft_object()).copy()
@@ -146,6 +167,7 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
             elif kernel_flag == 2:
                 pass
 
+            # Fourier transform of the scalar
             a[:][:][:] = scalar_d
             scalar_d_hat = (fft_object()).copy()
 
@@ -158,6 +180,17 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
 
 
 def vel_convolution_nufft(scalar, source_strenth, num_modes, L,  eps=1e-8, method=1, *args, **kwargs):
+    """ Compute convolution of given 'scalar' with kernel,
+    only dimension of two is implemented yet. TODO
+    'scalar', the location of each point, not uniform
+    'soruce_strenth', strenth of each point  
+    'num_modes', number of fourier modes in each direction
+    'L', length of the box
+    'eps=1e-8', error of the nufft
+    'method=1', only method 1 is implemented TODO
+    """
+    
+    # fourier transform of the kernel is better to be evaluated only once.
     if('kernel_hat' in kwargs):
         kernel_hat = kwargs['kernel_hat']
         assert isinstance(kernel_hat, np.ndarray)
@@ -172,16 +205,19 @@ def vel_convolution_nufft(scalar, source_strenth, num_modes, L,  eps=1e-8, metho
     if method == 1:
         xj, yj = scalar
         nj = len(xj)
+        # Dicide the box
         xmin = xj.min()
         xmax = xj.max()
         ymin = yj.min()
         ymax = yj.max()
         Lx, Ly = L
         assert ((xmax-xmin) <= Lx) & ((ymax-ymin) <= Ly), "All particles should be limieted to given [Lx,Ly] box!"
+        
         # double zero-padding the delta function and scale it into [-pi,pi)
         xj = (xj-(xmax+xmin)/2)/Lx*np.pi
         yj = (yj-(ymax+ymin)/2)/Ly*np.pi
         fk = np.zeros(num_modes, dtype=np.complex128, order='F')
+        
         # particle locations change at every iteration, no need to reuse fftw object
         ret = finufftpy.nufft2d1(xj, yj, source_strenth, -1, eps, nx, ny, fk, modeord=1)
         assert ret == 0, "NUFFT not successful!"
@@ -195,6 +231,8 @@ def vel_convolution_nufft(scalar, source_strenth, num_modes, L,  eps=1e-8, metho
         return v
 
 def vel_direct_convolution(scalar, source_strenth, kernel_handle, L, periodic):
+    """ Direct convolution, which is for comparison with vel_convolution_nufft
+    """
     Np = len(source_strenth)
     dim = len(L)
     v = np.zeros(Np)
@@ -214,6 +252,9 @@ def vel_direct_convolution(scalar, source_strenth, kernel_handle, L, periodic):
     
     
 def kernel_evaluate(x, kernel, periodic, L, indexing = 'xy'):
+    """ Evaluate kernel on given grid
+    1, 2, 3D are accepted.
+    """
     dim = len(L)
     if dim == 1:
         Lx = L[0]
