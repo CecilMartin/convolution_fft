@@ -5,7 +5,7 @@ import multiprocessing
 import numpy as np
 # from numba import jit
 import sys
-sys.path.append('~/Cecil/Projects/convolution_fft/src')
+sys.path.append('~/Cecil/Projects/convolution_fft/src') # Donev: Use relative paths like ./ not absolute. Put absolute paths in main not here
 # sys.path.append('/home/cecil/Cecil/Projects/convolution_fft/src')
 # import copy
 
