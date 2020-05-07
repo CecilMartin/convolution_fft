@@ -12,7 +12,7 @@ sys.path.append('~/Cecil/Projects/convolution_fft/src') # Donev: Use relative pa
 
 import convolution_fft as conv
 
-
+# Donev: This should use numba
 def kernel_evaluate_z_trans_variant(x, kernel_handle, periodic, L):
     """ Evaluate kernel on given grid
     1, 2, 3D are accepted.
@@ -26,7 +26,8 @@ def kernel_evaluate_z_trans_variant(x, kernel_handle, periodic, L):
     ny = y.size
     nz = z.size
     dz = Lz/nz
-    kernel = np.zeros((nz, 2*ny, 2*nx, nz))
+    kernel = np.zeros((nz, 2*ny, 2*nx, nz)) # Donev: Why is this always doubled in x and y. This takes a lot of memory
+    # Donev: This array should be allocated once and only once, not each time step because it is very large
     x_d = np.concatenate((x, x-Lx), axis=None)
     y_d = np.concatenate((y, y-Ly), axis=None)
     # z_d = np.concatenate((z, z-Lz), axis=None)
