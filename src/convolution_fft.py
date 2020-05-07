@@ -53,6 +53,7 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
         nx = Nshape[0]
         if method == 1:
             scalar_d = np.zeros(2*nx) # Double zero-pad to do method 1
+            # Donev: Why is this always double in size. Isn't the flag periodic supposed to be used?
             scalar_d[:nx] = scalar
             # fftw objects, either a global object or created at every call
             if ('fft_object' in kwargs) & ('ifft_object' in kwargs):
@@ -96,6 +97,7 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
         # two dimension
         [ny, nx] = Nshape[:]
         if method == 1:
+            # Donev: Why is this always double in size in BOTH directions? Isn't the flag periodic supposed to be used?
             scalar_d = np.zeros([2*ny, 2*nx]) # Double zero-pad to do method 1
             scalar_d[:ny, :nx] = scalar
             # fftw objects, either a global object or created at every call
@@ -105,6 +107,16 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
                 a = fft_object.input_array
                 b = fft_object.output_array
             else:
+                # Donev: The code in this else should be a separate function that is available to the USERs of this cdoe
+                # That is, there should be a function that:
+                # 1) Evaluates the kernel on a grid (this you already have it is called kernel_evaluate)
+                # 2) Takes the FFT of the kernel (write this function kernel_fft_evaluate, which can call kernel_evaluate internally)
+                # The output of these functions should be usable as an argument to this convolution routine
+                # That is, a user should be able to, with 3 calls, do the convolution efficiently by
+                # first evaluating a kernel, taking the FT, and then calling the convolution.
+                # Below, you should just call the routine to build the FT.
+                # I don't see any reason for this routine to accept either a kernel, kernel on a grid, or FFT of the kernel
+                # It should only accept the FFT since this is always required and you should give the user tools to evaluate the fft before calling convolve
                 a = pyfftw.empty_aligned((2*ny, 2*nx), dtype='float64')
                 # Save efforts by knowing that a is real
                 b = pyfftw.empty_aligned((2*ny, nx+1), dtype='complex128')
@@ -182,11 +194,11 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
 def vel_convolution_nufft(scalar, source_strenth, num_modes, L,  eps=1e-8, method=1, *args, **kwargs):
     """ Compute convolution of given 'scalar' with kernel,
     only dimension of two is implemented yet. TODO
-    'scalar', the location of each point, not uniform
+    'scalar', the location of each point, not uniform # Donev: Not a good name, call it positions or locations or source_location, not "scalar"
     'soruce_strenth', strenth of each point  
     'num_modes', number of fourier modes in each direction
     'L', length of the box
-    'eps=1e-8', error of the nufft
+    'eps=1e-8', error of the nufft # Donev: Make the default 1e-4 please
     'method=1', only method 1 is implemented TODO
     """
     
@@ -212,6 +224,7 @@ def vel_convolution_nufft(scalar, source_strenth, num_modes, L,  eps=1e-8, metho
         ymax = yj.max()
         Lx, Ly = L
         assert ((xmax-xmin) <= Lx) & ((ymax-ymin) <= Ly), "All particles should be limieted to given [Lx,Ly] box!"
+        # Donev: No, you should shift them into the periodic box yourself: In Brownian dynamics we allow particles to go outside of the unit cell
         
         # double zero-padding the delta function and scale it into [-pi,pi)
         xj = (xj-(xmax+xmin)/2)/Lx*np.pi
@@ -219,6 +232,8 @@ def vel_convolution_nufft(scalar, source_strenth, num_modes, L,  eps=1e-8, metho
         fk = np.zeros(num_modes, dtype=np.complex128, order='F')
         
         # particle locations change at every iteration, no need to reuse fftw object
+        # Donev: Particles change but the FFT grid does not change
+        # So it makes sense here to reuse the NUFFT object between calls
         ret = finufftpy.nufft2d1(xj, yj, source_strenth, -1, eps, nx, ny, fk, modeord=1)
         assert ret == 0, "NUFFT not successful!"
         v_hat = np.zeros((nx, ny, 2), order='F', dtype=np.complex128)
@@ -230,6 +245,7 @@ def vel_convolution_nufft(scalar, source_strenth, num_modes, L,  eps=1e-8, metho
         v = np.real(v)/(2*Lx*2*Ly)  # Real?
         return v
 
+# Donev: You should learn how to use NUMBA and write this in numba. There is a CUDA version in ConvolutionAdvection already as well
 def vel_direct_convolution(scalar, source_strenth, kernel_handle, L, periodic):
     """ Direct convolution, which is for comparison with vel_convolution_nufft
     """
@@ -249,8 +265,8 @@ def vel_direct_convolution(scalar, source_strenth, kernel_handle, L, periodic):
         raise Exception("Not implemented yet!")
     return v
         
-    
-    
+# Donev: Numba will accelerate this greatly. Even though we only need to do this once, it is nice to make it more efficient and it should be easy
+# Remember that we need to sum over many periodic images sometimes so this should be somewhat efficient not plain python loops    
 def kernel_evaluate(x, kernel, periodic, L, indexing = 'xy'):
     """ Evaluate kernel on given grid
     1, 2, 3D are accepted.
