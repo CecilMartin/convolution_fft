@@ -17,6 +17,7 @@ import convolution_fft as conv
 # kernel_flag = 2
 nj = 16
 Lx, Ly = [10, 10]
+eps = 1e-8
 nx = ny = int(np.ceil(np.sqrt(nj)*5))
 x = (np.random.rand(nj))*Lx
 y = (np.random.rand(nj))*Ly
@@ -38,7 +39,7 @@ source_strenth = np.ones(nj)
 num_modes = [2*nx, 2*ny]
 L = [Lx, Ly]
 
-v = conv.vel_convolution_nufft(scalar, source_strenth, num_modes, L, kernel_hat = kernel_hat)
+v = conv.vel_convolution_nufft(scalar, source_strenth, num_modes, L, eps = eps, kernel_hat = kernel_hat)
 print(np.allclose(v, np.ones([nj, 2]) * nj * (1+2*periodic[0])*(1+2*periodic[1])))
 v_direct = conv.vel_direct_convolution(scalar,source_strenth,kernel_mod.kernel_uniform_2D, L, periodic)
 print(np.allclose(v[:,0],v_direct))
@@ -50,6 +51,7 @@ print(np.allclose(v[:,0],v_direct))
 nj = 64
 Lx, Ly = [10, 10]
 nx = ny = 8
+eps = 1e-8
 x = (np.linspace(0, nx-1, nx)+0.5)*Lx/nx
 y = (np.linspace(0, ny-1, ny)+0.5)*Ly/ny
 x,y = np.meshgrid(x,y,indexing = 'ij')
@@ -73,7 +75,7 @@ source_strenth = np.ones(nj)
 num_modes = [2*nx, 2*ny]
 L = [Lx, Ly]
 
-v = conv.vel_convolution_nufft(scalar, source_strenth, num_modes, L, kernel_hat = kernel_hat)
+v = conv.vel_convolution_nufft(scalar, source_strenth, num_modes, L, eps = eps, kernel_hat = kernel_hat)
 print(np.allclose(v, np.ones([nj, 2]) * nj * (1+2*periodic[0])*(1+2*periodic[1])))
 
 v_direct = conv.vel_direct_convolution(scalar,source_strenth,kernel_mod.kernel_uniform_2D, L, periodic)
@@ -86,7 +88,8 @@ print(np.allclose(v[:,0],v_direct))
 # kernel_flag = 2
 nj = 64
 Lx, Ly = [10, 10]
-nx = ny = 16
+nx = ny = 8
+eps = 1e-8
 x = (np.linspace(0, nx-1, nx)+0.5)*Lx/nx
 y = (np.linspace(0, ny-1, ny)+0.5)*Ly/ny
 x,y = np.meshgrid(x,y,indexing = 'ij')
@@ -115,10 +118,11 @@ source_strenth = np.ones(nj)
 num_modes = [2*nx, 2*ny]
 
 
-v = conv.vel_convolution_nufft(scalar, source_strenth, num_modes, L, kernel_hat = kernel_hat)
+v = conv.vel_convolution_nufft(scalar, source_strenth, num_modes, L, eps = eps, kernel_hat = kernel_hat)
 v_direct = conv.vel_direct_convolution(scalar,source_strenth,kernel_handle, L, periodic)
 # print(np.allclose(v[:,0],v_direct))
 print(np.sqrt(np.sum(np.power(v[:,0]-v_direct,2)))/np.sqrt(np.sum(v_direct**2)))
+
 
 #%%
 # 2D NUFFT based-particles
@@ -128,6 +132,7 @@ print(np.sqrt(np.sum(np.power(v[:,0]-v_direct,2)))/np.sqrt(np.sum(v_direct**2)))
 
 nj = 16
 Lx, Ly = [10, 10]
+eps = 1e-8
 nx = ny = int(np.ceil(np.sqrt(nj)*5))
 x = (np.random.rand(nj))*Lx
 y = (np.random.rand(nj))*Ly
@@ -154,7 +159,7 @@ source_strenth = np.ones(nj)
 num_modes = [2*nx, 2*ny]
 
 
-v = conv.vel_convolution_nufft(scalar, source_strenth, num_modes, L, kernel_hat = kernel_hat)
+v = conv.vel_convolution_nufft(scalar, source_strenth, num_modes, L, eps = eps,  kernel_hat = kernel_hat)
 v_direct = conv.vel_direct_convolution(scalar,source_strenth,kernel_handle, L, periodic)
 # print(np.isclose(v[:,0],v_direct))
 print(np.sqrt(np.sum(np.power(v[:,0]-v_direct,2)))/np.sqrt(np.sum(v_direct**2)))

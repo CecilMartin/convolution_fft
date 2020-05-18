@@ -26,7 +26,7 @@ def kernel_evaluate_z_trans_variant(x, kernel_handle, periodic, L):
     ny = y.size
     nz = z.size
     dz = Lz/nz
-    kernel = np.zeros((nz, 2*ny, 2*nx, nz)) # Donev: Why is this always doubled in x and y. This takes a lot of memory
+    kernel = np.zeros((nz, 2*ny, 2*nx, nz)) 
     # Donev: This array should be allocated once and only once, not each time step because it is very large
     x_d = np.concatenate((x, x-Lx), axis=None)
     y_d = np.concatenate((y, y-Ly), axis=None)
@@ -90,25 +90,12 @@ def vel_convolution_fft_z_trans_variant(scalar, method=1, *args, **kwargs):
     """ Compute convolution of given 'scalar' with kernel, 
     dimension of 1, 2, 3 is accepted. 
     """
-
-    if 'kernel' in kwargs:
-        # User provides with evaluated kernel 
-        kernel = kwargs['kernel']
-        kernel_flag = 0  # doubled kernel is provided
-        assert isinstance(kernel, np.ndarray)
-    elif ('kernel_handle' in kwargs) & ('L' in kwargs) & ('x' in kwargs) & ('periodic' in kwargs):
-        # User provides with hernel function handle.
-        kernel_handle = kwargs['kernel_handle']
-        L = kwargs['L']
-        x = kwargs['x']
-        periodic = kwargs['periodic']
-        kernel_flag = 1  # given kernel handle
-        assert callable(kernel_handle)
-    elif ('kernel_hat' in kwargs):
+    if ('kernel_hat' in kwargs):
         # User provides with Fourier transform of the kernel
         kernel_hat = kwargs['kernel_hat']
-        kernel_flag = 2  # given fft of kernel
         assert isinstance(kernel_hat, np.ndarray)
+    else:
+        raise Exception("FT of the kernel should be given")    
 
     Nshape = scalar.shape
     dim = len(Nshape)
@@ -134,18 +121,6 @@ def vel_convolution_fft_z_trans_variant(scalar, method=1, *args, **kwargs):
                 0, 1), flags=('FFTW_MEASURE', ))
             ifft_object = pyfftw.FFTW(b, a, axes=(
                 0, 1), direction='FFTW_BACKWARD', flags=('FFTW_MEASURE', 'FFTW_DESTROY_INPUT'))
-
-        # To get the Fourier transform of the kernel
-        if kernel_flag == 0:
-            kernel_hat = np.zeros((nz, 2*ny, nx+1, nz), dtype=complex)
-            for i in range(nz):
-                a[:] = kernel[i, :, :, :]
-                kernel_hat[i, :, :, :] = (fft_object())
-        elif kernel_flag == 1:
-            kernel_hat = kernel_hat_z_trans_variant(
-                x, kernel_handle, periodic, L, fft_object)
-        elif kernel_flag == 2:
-            pass
         
         # Fourier transform of the scalar
         a[:][:][:] = scalar_d
