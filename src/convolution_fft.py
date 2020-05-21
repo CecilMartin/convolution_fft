@@ -132,10 +132,10 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
     return 0
 
 
-def vel_convolution_nufft(scalar, source_strenth, num_modes, L,  eps=1e-4, method=1, shift_flag = 1, *args, **kwargs):
-    """ Compute convolution of given 'scalar' with kernel,
+def vel_convolution_nufft(source_location, source_strenth, num_modes, L,  eps=1e-4, method=1, shift_flag = 1, *args, **kwargs):
+    """ Compute convolution of given 'source_location' with kernel,
     only dimension of two is implemented yet. TODO
-    'source_location', the location of each point, not uniform # Donev: Not a good name, call it positions or locations or source_location, not "scalar"
+    'source_location', the location of each point, not uniform 
     'soruce_strenth', strenth of each point  
     'num_modes', number of fourier modes in each direction
     'L', length of the box
@@ -152,12 +152,12 @@ def vel_convolution_nufft(scalar, source_strenth, num_modes, L,  eps=1e-4, metho
         raise Exception(
             'kernel_hat, fourier transform of kernel should be given')
 
-    Nshape = scalar.shape
+    Nshape = source_location.shape
     dim = Nshape[0]
     assert dim == 2, "Dim should be 2!"
     nx, ny = num_modes[:]
     if method == 1:
-        xj, yj = scalar
+        xj, yj = source_location
         nj = len(xj)
         if shift_flag:
             # Dicide the box
