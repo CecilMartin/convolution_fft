@@ -1,6 +1,7 @@
 from __future__ import division, print_function
 import numpy as np
-import finufftpy 
+import finufftpy
+from numba import jit, prange
 # import copy
 import multiprocessing
 import pyfftw
@@ -192,6 +193,7 @@ def vel_convolution_nufft(source_location, source_strenth, num_modes, L,  eps=1e
         return v
 
 # Donev: You should learn how to use NUMBA and write this in numba. There is a CUDA version in ConvolutionAdvection already as well
+@jit(nopython = True)
 def vel_direct_convolution(scalar, source_strenth, kernel_handle, L, periodic):
     """ Direct convolution, which is for comparison with vel_convolution_nufft
     """
@@ -199,13 +201,21 @@ def vel_direct_convolution(scalar, source_strenth, kernel_handle, L, periodic):
     dim = len(L)
     v = np.zeros(Np)
     if dim == 2:
-        x, y = scalar[:]
+        x = scalar[0]
+        y = scalar[1]
+        # x, y = scalar[:] # iterating over multidimensional array is a bug in numba
         for i in range(Np):
             for j in range(Np):
-                kernel_index_x, kernel_index_y = np.meshgrid(np.linspace(-periodic[0],periodic[0],2*periodic[0]+1),np.linspace(-periodic[1],periodic[1],2*periodic[1]+1), indexing = 'ij')
-                xd = x[i]-x[j]-L[0]*kernel_index_x
-                yd = y[i]-y[j]-L[1]*kernel_index_y
-                kernel = kernel_handle(xd,yd).sum()
+                kernel = 0
+                for kernel_index_x in range(-periodic[0],periodic[0]+1):
+                    for kernel_index_y in range(-periodic[1],periodic[1]):
+                        xd = x[i]-x[j]-L[0]*kernel_index_x
+                        yd = y[i]-y[j]-L[1]*kernel_index_y
+                        kernel += kernel_handle(xd,yd)
+                # kernel_index_x, kernel_index_y = np.meshgrid(np.linspace(-periodic[0],periodic[0],2*periodic[0]+1),np.linspace(-periodic[1],periodic[1],2*periodic[1]+1), indexing = 'ij')
+                # xd = x[i]-x[j]-L[0]*kernel_index_x
+                # yd = y[i]-y[j]-L[1]*kernel_index_y
+                # kernel = kernel_handle(xd,yd).sum()
                 v[i] += kernel * source_strenth[j]
     else:
         raise Exception("Not implemented yet!")
@@ -213,113 +223,211 @@ def vel_direct_convolution(scalar, source_strenth, kernel_handle, L, periodic):
         
 # Donev: Numba will accelerate this greatly. Even though we only need to do this once, it is nice to make it more efficient and it should be easy
 # Remember that we need to sum over many periodic images sometimes so this should be somewhat efficient not plain python loops    
-def kernel_evaluate(x, kernel, periodic, L, indexing = 'xy'):
+# @jit(nopython = True) # A function wrapper is needed here since some functions in numpy are not well supported
+def kernel_evaluate(grids, kernel, periodic, L, indexing = 'xy'):
     """ Evaluate kernel on given grid
     1, 2, 3D are accepted.
     """
     dim = len(L)
     if dim == 1:
         Lx = L[0]
-        x = x[0]
-        x_d = np.concatenate((x, x-Lx), axis=None)
-        periodic_flag = ~(periodic == 0)
-        scalar_d = kernel(x_d)
-        if periodic_flag[0]:
-            for i in range(periodic[0]):
-                scalar_d = scalar_d + kernel(x_d+(i+1)*Lx)
-                scalar_d = scalar_d + kernel(x_d-(i+1)*Lx)
-        return scalar_d
+        x = grids[0]
+        return __kernel_evaluate_1D(Lx, np.concatenate((x, x-Lx), axis=None), kernel, periodic)
+        # periodic_flag = ~(periodic == 0)
+        # scalar_d = kernel(x_d)
+        # if periodic_flag[0]:
+        #     for i in range(periodic[0]):
+        #         scalar_d = scalar_d + kernel(x_d+(i+1)*Lx)
+        #         scalar_d = scalar_d + kernel(x_d-(i+1)*Lx)
+        # return scalar_d
     if dim == 2:
         Lx, Ly = L[:]
-        x, y = x[:]
-        x_d = np.concatenate((x, x-Lx), axis=None)
+        x, y = grids[:]
+        x_d = np.concatenate((x, x-Lx), axis=None)  # Numba has problem with (x,x-Lx)
         y_d = np.concatenate((y, y-Ly), axis=None)
         grid_x, grid_y = np.meshgrid(x_d, y_d, indexing = indexing)
-        periodic_flag = ~(periodic == 0)
-        scalar_d = kernel(grid_x, grid_y)
-        if periodic_flag[0]:
-            for i in range(periodic[0]):
-                if periodic_flag[1]:
-                    for j in range(periodic[1]):
-                        scalar_d = scalar_d + \
-                            kernel(grid_x+(i+1)*Lx, grid_y+(j+1)*Ly)
-                        scalar_d = scalar_d + \
-                            kernel(grid_x+(i+1)*Lx, grid_y-(j+1)*Ly)
-                        scalar_d = scalar_d + \
-                            kernel(grid_x-(i+1)*Lx, grid_y+(j+1)*Ly)
-                        scalar_d = scalar_d + \
-                            kernel(grid_x-(i+1)*Lx, grid_y-(j+1)*Ly)
-                else:
-                    scalar_d = scalar_d + kernel(grid_x+(i+1)*Lx, grid_y)
-                    scalar_d = scalar_d + kernel(grid_x-(i+1)*Lx, grid_y)
-        else:
-            if periodic_flag[1]:
-                for j in range(periodic[1]):
-                    scalar_d = scalar_d + kernel(grid_x, grid_y+(j+1)*Ly)
-                    scalar_d = scalar_d + kernel(grid_x, grid_y-(j+1)*Ly)
-        return scalar_d
+        return __kernel_evaluate_2D(Lx, Ly, grid_x, grid_y, kernel, periodic)
+        # periodic_flag = ~(periodic == 0)
+        # scalar_d = kernel(grid_x, grid_y)
+        # if periodic_flag[0]:
+        #     for i in range(periodic[0]):
+        #         if periodic_flag[1]:
+        #             for j in range(periodic[1]):
+        #                 scalar_d = scalar_d + \
+        #                     kernel(grid_x+(i+1)*Lx, grid_y+(j+1)*Ly)
+        #                 scalar_d = scalar_d + \
+        #                     kernel(grid_x+(i+1)*Lx, grid_y-(j+1)*Ly)
+        #                 scalar_d = scalar_d + \
+        #                     kernel(grid_x-(i+1)*Lx, grid_y+(j+1)*Ly)
+        #                 scalar_d = scalar_d + \
+        #                     kernel(grid_x-(i+1)*Lx, grid_y-(j+1)*Ly)
+        #         else:
+        #             scalar_d = scalar_d + kernel(grid_x+(i+1)*Lx, grid_y)
+        #             scalar_d = scalar_d + kernel(grid_x-(i+1)*Lx, grid_y)
+        # else:
+        #     if periodic_flag[1]:
+        #         for j in range(periodic[1]):
+        #             scalar_d = scalar_d + kernel(grid_x, grid_y+(j+1)*Ly)
+        #             scalar_d = scalar_d + kernel(grid_x, grid_y-(j+1)*Ly)
+        # return scalar_d
     elif dim == 3:
         Lx, Ly, Lz = L[:]
-        x, y, z = x[:]
-        x_d = np.concatenate((x, x-Lx), axis=None)
+        x, y, z = grids[:]
+        x_d = np.concatenate((x, x-Lx), axis=None) # Numba
         y_d = np.concatenate((y, y-Ly), axis=None)
         z_d = np.concatenate((z, z-Lz), axis=None)
         grid_x, grid_y, grid_z = np.meshgrid(x_d, y_d, z_d, indexing = indexing)
-        periodic_flag = ~(periodic == 0)
-        scalar_d = kernel(grid_x, grid_y, grid_z)
-        if periodic_flag[0]:
-            for i in range(periodic[0]):
-                if periodic_flag[1]:
-                    for j in range(periodic[1]):
-                        if periodic_flag[2]:
-                            for k in range(periodic[2]):
-                                scalar_d += kernel(grid_x+(i+1)*Lx, grid_y+(j+1)*Ly, grid_z+(k+1)*Lz) + kernel(
-                                    grid_x+(i+1)*Lx, grid_y+(j+1)*Ly, grid_z-(k+1)*Lz)
-                                scalar_d += kernel(grid_x+(i+1)*Lx, grid_y-(j+1)*Ly, grid_z+(k+1)*Lz) + kernel(
-                                    grid_x+(i+1)*Lx, grid_y-(j+1)*Ly, grid_z-(k+1)*Lz)
-                                scalar_d += kernel(grid_x-(i+1)*Lx, grid_y+(j+1)*Ly, grid_z+(k+1)*Lz) + kernel(
-                                    grid_x-(i+1)*Lx, grid_y+(j+1)*Ly, grid_z-(k+1)*Lz)
-                                scalar_d += kernel(grid_x-(i+1)*Lx, grid_y-(j+1)*Ly, grid_z+(k+1)*Lz) + kernel(
-                                    grid_x-(i+1)*Lx, grid_y-(j+1)*Ly, grid_z-(k+1)*Lz)
-                        else:
-                            scalar_d += kernel(grid_x+(i+1)
-                                               * Lx, grid_y+(j+1)*Ly, grid_z)
-                            scalar_d += kernel(grid_x+(i+1)
-                                               * Lx, grid_y-(j+1)*Ly, grid_z)
-                            scalar_d += kernel(grid_x-(i+1)
-                                               * Lx, grid_y+(j+1)*Ly, grid_z)
-                            scalar_d += kernel(grid_x-(i+1)
-                                               * Lx, grid_y-(j+1)*Ly, grid_z)
-                else:
-                    if periodic_flag[2]:
-                        for k in range(periodic[2]):
-                            scalar_d += kernel(grid_x+(i+1)*Lx, grid_y, grid_z+(k+1)*Lz) + kernel(
-                                grid_x+(i+1)*Lx, grid_y, grid_z-(k+1)*Lz)
-                            scalar_d += kernel(grid_x-(i+1)*Lx, grid_y, grid_z+(k+1)*Lz) + kernel(
-                                grid_x-(i+1)*Lx, grid_y, grid_z-(k+1)*Lz)
-                    else:
-                        scalar_d += kernel(grid_x+(i+1)*Lx, grid_y, grid_z)
-                        scalar_d += kernel(grid_x-(i+1)*Lx, grid_y, grid_z)
-        else:
+        return __kernel_evaluate_3D(Lx, Ly, Lz, grid_x, grid_y, grid_z, kernel, periodic)
+        # periodic_flag = ~(periodic == 0)
+        # scalar_d = kernel(grid_x, grid_y, grid_z)
+        # if periodic_flag[0]:
+        #     for i in range(periodic[0]):
+        #         if periodic_flag[1]:
+        #             for j in range(periodic[1]):
+        #                 if periodic_flag[2]:
+        #                     for k in range(periodic[2]):
+        #                         scalar_d += kernel(grid_x+(i+1)*Lx, grid_y+(j+1)*Ly, grid_z+(k+1)*Lz) + kernel(
+        #                             grid_x+(i+1)*Lx, grid_y+(j+1)*Ly, grid_z-(k+1)*Lz)
+        #                         scalar_d += kernel(grid_x+(i+1)*Lx, grid_y-(j+1)*Ly, grid_z+(k+1)*Lz) + kernel(
+        #                             grid_x+(i+1)*Lx, grid_y-(j+1)*Ly, grid_z-(k+1)*Lz)
+        #                         scalar_d += kernel(grid_x-(i+1)*Lx, grid_y+(j+1)*Ly, grid_z+(k+1)*Lz) + kernel(
+        #                             grid_x-(i+1)*Lx, grid_y+(j+1)*Ly, grid_z-(k+1)*Lz)
+        #                         scalar_d += kernel(grid_x-(i+1)*Lx, grid_y-(j+1)*Ly, grid_z+(k+1)*Lz) + kernel(
+        #                             grid_x-(i+1)*Lx, grid_y-(j+1)*Ly, grid_z-(k+1)*Lz)
+        #                 else:
+        #                     scalar_d += kernel(grid_x+(i+1)
+        #                                        * Lx, grid_y+(j+1)*Ly, grid_z)
+        #                     scalar_d += kernel(grid_x+(i+1)
+        #                                        * Lx, grid_y-(j+1)*Ly, grid_z)
+        #                     scalar_d += kernel(grid_x-(i+1)
+        #                                        * Lx, grid_y+(j+1)*Ly, grid_z)
+        #                     scalar_d += kernel(grid_x-(i+1)
+        #                                        * Lx, grid_y-(j+1)*Ly, grid_z)
+        #         else:
+        #             if periodic_flag[2]:
+        #                 for k in range(periodic[2]):
+        #                     scalar_d += kernel(grid_x+(i+1)*Lx, grid_y, grid_z+(k+1)*Lz) + kernel(
+        #                         grid_x+(i+1)*Lx, grid_y, grid_z-(k+1)*Lz)
+        #                     scalar_d += kernel(grid_x-(i+1)*Lx, grid_y, grid_z+(k+1)*Lz) + kernel(
+        #                         grid_x-(i+1)*Lx, grid_y, grid_z-(k+1)*Lz)
+        #             else:
+        #                 scalar_d += kernel(grid_x+(i+1)*Lx, grid_y, grid_z)
+        #                 scalar_d += kernel(grid_x-(i+1)*Lx, grid_y, grid_z)
+        # else:
+        #     if periodic_flag[1]:
+        #         for j in range(periodic[1]):
+        #             if periodic_flag[2]:
+        #                 for k in range(periodic[2]):
+        #                     scalar_d += kernel(grid_x, grid_y+(j+1)*Ly, grid_z+(k+1)*Lz) + kernel(
+        #                         grid_x, grid_y+(j+1)*Ly, grid_z-(k+1)*Lz)
+        #                     scalar_d += kernel(grid_x, grid_y-(j+1)*Ly, grid_z+(k+1)*Lz) + kernel(
+        #                         grid_x, grid_y-(j+1)*Ly, grid_z-(k+1)*Lz)
+        #             else:
+        #                 scalar_d += kernel(grid_x, grid_y+(j+1)*Ly, grid_z) + \
+        #                     kernel(grid_x, grid_y-(j+1)*Ly, grid_z)
+        #     else:
+        #         if periodic_flag[2]:
+        #             for k in range(periodic[2]):
+        #                 scalar_d += kernel(grid_x, grid_y, grid_z+(k+1)*Lz) + \
+        #                     kernel(grid_x, grid_y, grid_z-(k+1)*Lz)
+        # return scalar_d
+    else:
+        raise Exception('Only 1,2,3 dimension(s) are supported!')
+
+
+# Numba requires same shape of Numba array of function arguments. So We need to use seperate jitted function for different dimensions.
+
+@jit(nopython = True)
+def __kernel_evaluate_1D(Lx, x_d, kernel, periodic):
+    periodic_flag = ~(periodic == 0)
+    scalar_d = kernel(x_d)
+    if periodic_flag[0]:
+        for i in range(periodic[0]):
+            scalar_d = scalar_d + kernel(x_d+(i+1)*Lx)
+            scalar_d = scalar_d + kernel(x_d-(i+1)*Lx)
+    return scalar_d
+
+@jit(nopython = True)
+def __kernel_evaluate_2D(Lx, Ly, grid_x, grid_y, kernel, periodic):
+    periodic_flag = ~(periodic == 0)
+    scalar_d = kernel(grid_x, grid_y)
+    if periodic_flag[0]:
+        for i in range(periodic[0]):
+            if periodic_flag[1]:
+                for j in range(periodic[1]):
+                    scalar_d = scalar_d + \
+                        kernel(grid_x+(i+1)*Lx, grid_y+(j+1)*Ly)
+                    scalar_d = scalar_d + \
+                        kernel(grid_x+(i+1)*Lx, grid_y-(j+1)*Ly)
+                    scalar_d = scalar_d + \
+                        kernel(grid_x-(i+1)*Lx, grid_y+(j+1)*Ly)
+                    scalar_d = scalar_d + \
+                        kernel(grid_x-(i+1)*Lx, grid_y-(j+1)*Ly)
+            else:
+                scalar_d = scalar_d + kernel(grid_x+(i+1)*Lx, grid_y)
+                scalar_d = scalar_d + kernel(grid_x-(i+1)*Lx, grid_y)
+    else:
+        if periodic_flag[1]:
+            for j in range(periodic[1]):
+                scalar_d = scalar_d + kernel(grid_x, grid_y+(j+1)*Ly)
+                scalar_d = scalar_d + kernel(grid_x, grid_y-(j+1)*Ly)
+    return scalar_d
+
+@jit(nopython = True)
+def __kernel_evaluate_3D(Lx, Ly, Lz, grid_x, grid_y, grid_z, kernel, periodic):
+    periodic_flag = ~(periodic == 0)
+    scalar_d = kernel(grid_x, grid_y, grid_z)
+    if periodic_flag[0]:
+        for i in range(periodic[0]):
             if periodic_flag[1]:
                 for j in range(periodic[1]):
                     if periodic_flag[2]:
                         for k in range(periodic[2]):
-                            scalar_d += kernel(grid_x, grid_y+(j+1)*Ly, grid_z+(k+1)*Lz) + kernel(
-                                grid_x, grid_y+(j+1)*Ly, grid_z-(k+1)*Lz)
-                            scalar_d += kernel(grid_x, grid_y-(j+1)*Ly, grid_z+(k+1)*Lz) + kernel(
-                                grid_x, grid_y-(j+1)*Ly, grid_z-(k+1)*Lz)
+                            scalar_d += kernel(grid_x+(i+1)*Lx, grid_y+(j+1)*Ly, grid_z+(k+1)*Lz) + kernel(
+                                grid_x+(i+1)*Lx, grid_y+(j+1)*Ly, grid_z-(k+1)*Lz)
+                            scalar_d += kernel(grid_x+(i+1)*Lx, grid_y-(j+1)*Ly, grid_z+(k+1)*Lz) + kernel(
+                                grid_x+(i+1)*Lx, grid_y-(j+1)*Ly, grid_z-(k+1)*Lz)
+                            scalar_d += kernel(grid_x-(i+1)*Lx, grid_y+(j+1)*Ly, grid_z+(k+1)*Lz) + kernel(
+                                grid_x-(i+1)*Lx, grid_y+(j+1)*Ly, grid_z-(k+1)*Lz)
+                            scalar_d += kernel(grid_x-(i+1)*Lx, grid_y-(j+1)*Ly, grid_z+(k+1)*Lz) + kernel(
+                                grid_x-(i+1)*Lx, grid_y-(j+1)*Ly, grid_z-(k+1)*Lz)
                     else:
-                        scalar_d += kernel(grid_x, grid_y+(j+1)*Ly, grid_z) + \
-                            kernel(grid_x, grid_y-(j+1)*Ly, grid_z)
+                        scalar_d += kernel(grid_x+(i+1)
+                                            * Lx, grid_y+(j+1)*Ly, grid_z)
+                        scalar_d += kernel(grid_x+(i+1)
+                                            * Lx, grid_y-(j+1)*Ly, grid_z)
+                        scalar_d += kernel(grid_x-(i+1)
+                                            * Lx, grid_y+(j+1)*Ly, grid_z)
+                        scalar_d += kernel(grid_x-(i+1)
+                                            * Lx, grid_y-(j+1)*Ly, grid_z)
             else:
                 if periodic_flag[2]:
                     for k in range(periodic[2]):
-                        scalar_d += kernel(grid_x, grid_y, grid_z+(k+1)*Lz) + \
-                            kernel(grid_x, grid_y, grid_z-(k+1)*Lz)
-        return scalar_d
+                        scalar_d += kernel(grid_x+(i+1)*Lx, grid_y, grid_z+(k+1)*Lz) + kernel(
+                            grid_x+(i+1)*Lx, grid_y, grid_z-(k+1)*Lz)
+                        scalar_d += kernel(grid_x-(i+1)*Lx, grid_y, grid_z+(k+1)*Lz) + kernel(
+                            grid_x-(i+1)*Lx, grid_y, grid_z-(k+1)*Lz)
+                else:
+                    scalar_d += kernel(grid_x+(i+1)*Lx, grid_y, grid_z)
+                    scalar_d += kernel(grid_x-(i+1)*Lx, grid_y, grid_z)
     else:
-        raise Exception('%iD is not implemented yet!' % dim)
+        if periodic_flag[1]:
+            for j in range(periodic[1]):
+                if periodic_flag[2]:
+                    for k in range(periodic[2]):
+                        scalar_d += kernel(grid_x, grid_y+(j+1)*Ly, grid_z+(k+1)*Lz) + kernel(
+                            grid_x, grid_y+(j+1)*Ly, grid_z-(k+1)*Lz)
+                        scalar_d += kernel(grid_x, grid_y-(j+1)*Ly, grid_z+(k+1)*Lz) + kernel(
+                            grid_x, grid_y-(j+1)*Ly, grid_z-(k+1)*Lz)
+                else:
+                    scalar_d += kernel(grid_x, grid_y+(j+1)*Ly, grid_z) + \
+                        kernel(grid_x, grid_y-(j+1)*Ly, grid_z)
+        else:
+            if periodic_flag[2]:
+                for k in range(periodic[2]):
+                    scalar_d += kernel(grid_x, grid_y, grid_z+(k+1)*Lz) + \
+                        kernel(grid_x, grid_y, grid_z-(k+1)*Lz)
+    return scalar_d
 
 def kernel_fft_evaluate(method = 1, indexing = 'xy', *arg, **kwargs):
     """ Compute Fourier transform of kenrel. user can provide with kernel evaluated at grids,
@@ -436,5 +544,3 @@ def kernel_fft_evaluate(method = 1, indexing = 'xy', *arg, **kwargs):
     else:
         raise Exception('Haven\'t implemented convolution for %dD!' % dim)
     return kernel_hat
-    
-    
