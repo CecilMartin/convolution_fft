@@ -76,8 +76,13 @@ def no_wall_mobility_trans_times_force_numba(r_vectors, force, eta, a, L):
               Mxz = 0
               Myy = Mxx
               Myz = 0
-              Mzz = Mxx           
+              Mzz = Mxx 
             else:
+              # Donev: The code between the two lines is what should be moved to a separate routine that just evaluates the kernel given r(1:3) and force F(1:3) 
+              # Donev: Self-mobility should be handled separately as the case of r==0
+              # But also note that you do not have to treat self-mobility separately because the RPY kernel is smooth at r=0 and if written carefully
+              # you can just evaluate it at r=0 without needing different code for r=0. It is worth doing
+              #----------------------------------------------------------            
               # Normalize distance with hydrodynamic radius
               rx = rx * inva 
               ry = ry * inva
@@ -86,6 +91,7 @@ def no_wall_mobility_trans_times_force_numba(r_vectors, force, eta, a, L):
               r = np.sqrt(r2)
               
               # TODO: We should not divide by zero 
+              # Donev: This should be inside the r>2 if clause below. For r<2 the formulas do not actually involve 1/r, only r.
               invr = 1.0 / r
               invr2 = invr * invr
 
@@ -100,8 +106,8 @@ def no_wall_mobility_trans_times_force_numba(r_vectors, force, eta, a, L):
                 Mzz = (c1 + c2*rz*rz) * invr 
               else:
                 c1 = fourOverThree * (1.0 - 0.28125 * r) # 9/32 = 0.28125
-                c2 = fourOverThree * 0.09375 * invr      # 3/32 = 0.09375
-                Mxx = c1 + c2 * rx*rx 
+                c2 = fourOverThree * 0.09375 * invr      # 3/32 = 0.09375 # Donev: It is not needed to use invr here so this can work for r==0
+                Mxx = c1 + c2 * rx*rx # Donev: Note that 1/r cancels with rx*ry so there is no singularity here for r=0 if you write this differently
                 Mxy =      c2 * rx*ry 
                 Mxz =      c2 * rx*rz 
                 Myy = c1 + c2 * ry*ry 
@@ -112,15 +118,18 @@ def no_wall_mobility_trans_times_force_numba(r_vectors, force, eta, a, L):
             Mzx = Mxz
             Mzy = Myz
 	  
-            # 2. Compute product M_ij * F_j           
+            # 2. Compute product M_ij * F_j      
+            # Donev: Replace force[j,:] with F[:] -- an input to the new routine     
             u[i,0] += (Mxx * force[j,0] + Mxy * force[j,1] + Mxz * force[j,2]) * norm_fact_f
             u[i,1] += (Myx * force[j,0] + Myy * force[j,1] + Myz * force[j,2]) * norm_fact_f
             u[i,2] += (Mzx * force[j,0] + Mzy * force[j,1] + Mzz * force[j,2]) * norm_fact_f
+            #----------------------------------------------------------            
 
   return u.flatten()
 
 
 @njit(parallel=True)
+# Donev: This is the main routine you need to edit since this is the first kernel you will focus on
 def single_wall_mobility_trans_times_force_numba(r_vectors, force, eta, a, L):
   ''' 
   Returns the product of the mobility at the blob level to the force 
@@ -178,8 +187,15 @@ def single_wall_mobility_trans_times_force_numba(r_vectors, force, eta, a, L):
             # 1. Compute mobility for pair i-j, if i==j use self-interation
             j_image = j
             if boxX != 0 or boxY != 0 or boxZ != 0:
-              j_image = -1           
-
+              j_image = -1    
+              
+                     
+            # Donev: Observe how code is repeated here from no_wall_mobility_trans_times_force_numba
+            # This is wrong and bad programming! The RPY kernel with a wall consists of:
+            # 1. RPY without wall, plus
+            # 2. A wall correcton
+            # So the way this should be written is that it should call the RPY without wall first, and then add the wall correction
+            # There should be NO CODE DUPLICATION
             rx = rx * inva 
             ry = ry * inva
             rz = rz * inva
@@ -266,7 +282,8 @@ def single_wall_mobility_trans_times_force_numba(r_vectors, force, eta, a, L):
 
   return u.flatten()
 
-
+# Donev: This function seems pointless to me. You can do this by calling single_wall_mobility_trans_times_force_numba
+# with zero F(3) and then zero the result for u(3) if that is what you want. No need to repeat/duplicate code!
 @njit(parallel=True)
 def in_plane_mobility_trans_times_force_numba(r_vectors, force, eta, a, L):
   ''' 
@@ -415,7 +432,7 @@ def in_plane_mobility_trans_times_force_numba(r_vectors, force, eta, a, L):
   return u.flatten()
 
 
-
+# Donev: You will also need this function later when we do microrollers
 @njit(parallel=True)
 def no_wall_mobility_trans_times_torque_numba(r_vectors, torque, eta, a, L):
   ''' 

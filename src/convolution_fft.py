@@ -23,7 +23,11 @@ def real(x): # TODO, this is the function to choose single or double
     else:
         return np.float64(x)
 
-
+# Donev: You should write these routines to be more specific and less general
+# So instead of having a general **kwargs you should always require the user to pass in the kernel_hat, and always require the user to pass in fft_object etc.
+# It is nice to have flexible code but it reads to code duplication and for scientific applications you want to make the code efficient and force
+# the user to call the code in an efficient manner, rather than make it most convenient
+# You can also make it simple by always taking in 3d arrays and making 2d mean nz=1 (one cell in z) and 1d mean nz=ny=1.
 def vel_convolution_fft(scalar, method=1, *args, **kwargs):
     """ Compute convolution of given 'scalar' with kernel, 
     dimension of 1, 2, 3 is accepted. 
@@ -51,6 +55,11 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
             else:
                 # fftw object is created every time this function is called, 
                 # suitable for situation where Foutier modes change at every time step
+                # Donev: This is Code (A). Search for Code (B) below
+                # This is repeated code (A)=(B). No code should be repeated if it is more than one line
+                # Instead, you should write a routine called "create_FFTW_plan" for the user to create the plan
+                # Then always require the user to provide this as input always and you can just use it
+                # There is no extra burden on the user since all they need to do is call create_FFTW_plan first then call convolve
                 a = pyfftw.empty_aligned((2*nx), dtype='float64')
                 # Save efforts by knowing that a is real
                 b = pyfftw.empty_aligned((nx+1), dtype='complex128')
@@ -132,7 +141,13 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
         raise Exception('Haven\'t implemented convolution for %dD!' % dim)
     return 0
 
-
+# Donev: This works for a scalar kernel but in fact we work with vector forces and tensor kernels
+# The easiest way to do this is to treat the kernel as being a matrix (mobility matrix) of size (D,D) and the force (strength) a vector of of size (D)
+# Then a scalar kernel is D=1 and plane kernel is D=2, and full 3D is D=3 etc.
+# Note that compilers can optimize code better if they now D=2 at compile time (instead of being an unknown value)
+# I am not sure what the best way to do that is but perhaps when the Just In Time compiler compiles the code it can see the value of D from the caller? 
+# Donev: Why is this limited only to d=2? It seems it also works in 3d equally well (it is an alternative method to periodizing).
+# I am not sure if Method 1 will work for a kernel that decays like 1/r instead of 1/r^3 (probably not) but in principle I think it will work, we can discuss on zoom
 def vel_convolution_nufft(source_location, source_strenth, num_modes, L,  eps=1e-4, method=1, shift_flag = 1, *args, **kwargs):
     """ Compute convolution of given 'source_location' with kernel,
     only dimension of two is implemented yet. TODO
@@ -186,10 +201,10 @@ def vel_convolution_nufft(source_location, source_strenth, num_modes, L,  eps=1e
         v_hat = np.zeros((nx, ny, 2), order='F', dtype=np.complex128)
         v_hat[:, :, 0] = fk * kernel_hat[0]
         v_hat[:, :, 1] = fk * kernel_hat[1]
-        v = np.zeros((nj, 2), order='F', dtype=np.complex128)
+        v = np.zeros((nj, 2), order='F', dtype=np.complex128) # Donev: The return result should be double64 not complex128
         ret = finufftpy.nufft2d2many(xj, yj, v, 1, eps, v_hat, modeord=1)
         assert ret == 0, "NUFFT not successful!"
-        v = np.real(v)/(2*Lx*2*Ly)  # Real?
+        v = np.real(v)/(2*Lx*2*Ly)  # Real? # Donev: Make sure this is a real number not complex. Return only the real part
         return v
 
 # Donev: You should learn how to use NUMBA and write this in numba. There is a CUDA version in ConvolutionAdvection already as well
@@ -224,6 +239,7 @@ def vel_direct_convolution(scalar, source_strenth, kernel_handle, L, periodic):
 # Donev: Numba will accelerate this greatly. Even though we only need to do this once, it is nice to make it more efficient and it should be easy
 # Remember that we need to sum over many periodic images sometimes so this should be somewhat efficient not plain python loops    
 # @jit(nopython = True) # A function wrapper is needed here since some functions in numpy are not well supported
+# Donev: I think this can be handled best by always making the arrays be 3d
 def kernel_evaluate(grids, kernel, periodic, L, indexing = 'xy'):
     """ Evaluate kernel on given grid
     1, 2, 3D are accepted.
@@ -336,14 +352,16 @@ def kernel_evaluate(grids, kernel, periodic, L, indexing = 'xy'):
 
 
 # Numba requires same shape of Numba array of function arguments. So We need to use seperate jitted function for different dimensions.
-
+# Donev: I am a little worried about using lambda functions here. Will they be inlined? What is the overhead of using a lambda function?
+# You need to do testing to check this
+# Instead, the right way to do this in python is to make a class Kernel that has an object evaluate. But this may not work with numba...
 @jit(nopython = True)
 def __kernel_evaluate_1D(Lx, x_d, kernel, periodic):
     periodic_flag = ~(periodic == 0)
     scalar_d = kernel(x_d)
     if periodic_flag[0]:
         for i in range(periodic[0]):
-            scalar_d = scalar_d + kernel(x_d+(i+1)*Lx)
+            scalar_d = scalar_d + kernel(x_d+(i+1)*Lx) # Donev: Will numba inline kernel ?
             scalar_d = scalar_d + kernel(x_d-(i+1)*Lx)
     return scalar_d
 
@@ -466,6 +484,7 @@ def kernel_fft_evaluate(method = 1, indexing = 'xy', *arg, **kwargs):
             else:
                 # fftw object is created every time this function is called, 
                 # suitable for situation where Foutier modes change at every time step
+                # Donev: This is Code (B)
                 a = pyfftw.empty_aligned((2*nx), dtype='float64')
                 # Save efforts by knowing that a is real
                 b = pyfftw.empty_aligned((nx+1), dtype='complex128')
