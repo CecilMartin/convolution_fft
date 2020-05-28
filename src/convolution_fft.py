@@ -50,24 +50,13 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
                 # fftw objects is passed as input, it's used globally
                 fft_object = kwargs['fft_object']
                 ifft_object = kwargs['ifft_object']
-                a = fft_object.input_array
-                b = fft_object.output_array
             else:
                 # fftw object is created every time this function is called, 
                 # suitable for situation where Foutier modes change at every time step
-                # Donev: This is Code (A). Search for Code (B) below
-                # This is repeated code (A)=(B). No code should be repeated if it is more than one line
-                # Instead, you should write a routine called "create_FFTW_plan" for the user to create the plan
-                # Then always require the user to provide this as input always and you can just use it
-                # There is no extra burden on the user since all they need to do is call create_FFTW_plan first then call convolve
-                a = pyfftw.empty_aligned((2*nx), dtype='float64')
-                # Save efforts by knowing that a is real
-                b = pyfftw.empty_aligned((nx+1), dtype='complex128')
-                # Real to complex FFT Over the both axes
-                fft_object = pyfftw.FFTW(a, b, axes=(
-                    -1,), flags=('FFTW_MEASURE', ))
-                ifft_object = pyfftw.FFTW(b, a, axes=(
-                    -1,), direction='FFTW_BACKWARD', flags=('FFTW_MEASURE', 'FFTW_DESTROY_INPUT'))
+                fft_object, ifft_object = create_fftw_plan([nx])
+
+            a = fft_object.input_array
+            b = fft_object.output_array
             
 
             # Fourier transform of the scalar
@@ -86,18 +75,12 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
             # fftw objects, either a global object or created at every call
             if ('fft_object' in kwargs) & ('ifft_object' in kwargs):
                 fft_object = kwargs['fft_object']
-                ifft_object = kwargs['ifft_object']
-                a = fft_object.input_array
-                b = fft_object.output_array
+                ifft_object = kwargs['ifft_object']                
             else:
-                a = pyfftw.empty_aligned((2*ny, 2*nx), dtype='float64')
-                # Save efforts by knowing that a is real
-                b = pyfftw.empty_aligned((2*ny, nx+1), dtype='complex128')
-                # Real to complex FFT Over the both axes
-                fft_object = pyfftw.FFTW(a, b, axes=(
-                    0, 1), flags=('FFTW_MEASURE', ))
-                ifft_object = pyfftw.FFTW(b, a, axes=(
-                    0, 1), direction='FFTW_BACKWARD', flags=('FFTW_MEASURE', 'FFTW_DESTROY_INPUT'))
+                fft_object, ifft_object = create_fftw_plan([nx,ny])
+
+            a = fft_object.input_array
+            b = fft_object.output_array
 
             # Fourier transform of the scalar
             a[:][:] = scalar_d
@@ -117,19 +100,12 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
             if ('fft_object' in kwargs) & ('ifft_object' in kwargs):
                 fft_object = kwargs['fft_object']
                 ifft_object = kwargs['ifft_object']
-                a = fft_object.input_array
-                b = fft_object.output_array
             else:
-                a = pyfftw.empty_aligned((2*ny, 2*nx, 2*nz), dtype='float64')
-                # Save efforts by knowing that a is real
-                b = pyfftw.empty_aligned(
-                    (2*ny, 2*nx, nz+1), dtype='complex128')
-                # Real to complex FFT Over the both axes
-                fft_object = pyfftw.FFTW(a, b, axes=(
-                    0, 1, 2), flags=('FFTW_MEASURE', ))
-                ifft_object = pyfftw.FFTW(b, a, axes=(
-                    0, 1, 2), direction='FFTW_BACKWARD', flags=('FFTW_MEASURE', 'FFTW_DESTROY_INPUT'))
+                fft_object, ifft_object = create_fftw_plan([nx,ny,nz])
 
+            a = fft_object.input_array
+            b = fft_object.output_array
+            
             # Fourier transform of the scalar
             a[:][:][:] = scalar_d
             scalar_d_hat = (fft_object()).copy()
@@ -475,24 +451,16 @@ def kernel_fft_evaluate(method = 1, indexing = 'xy', *arg, **kwargs):
         nx = Nshape[0]
         if method == 1:
             # fftw objects, either a global object or created at every call
-            if ('fft_object' in kwargs) & ('ifft_object' in kwargs):
+            if ('fft_object' in kwargs):
                 # fftw objects is passed as input, it's used globally
                 fft_object = kwargs['fft_object']
-                ifft_object = kwargs['ifft_object']
-                a = fft_object.input_array
-                b = fft_object.output_array
             else:
                 # fftw object is created every time this function is called, 
                 # suitable for situation where Foutier modes change at every time step
-                # Donev: This is Code (B)
-                a = pyfftw.empty_aligned((2*nx), dtype='float64')
-                # Save efforts by knowing that a is real
-                b = pyfftw.empty_aligned((nx+1), dtype='complex128')
-                # Real to complex FFT Over the both axes
-                fft_object = pyfftw.FFTW(a, b, axes=(
-                    -1,), flags=('FFTW_MEASURE', ))
-                ifft_object = pyfftw.FFTW(b, a, axes=(
-                    -1,), direction='FFTW_BACKWARD', flags=('FFTW_MEASURE', 'FFTW_DESTROY_INPUT'))
+                fft_object = create_fftw_plan([nx],ifft_flag=False)
+
+            a = fft_object.input_array
+            b = fft_object.output_array
             
             # To get the Fourier transform of the kernel
             if kernel_flag == 0:
@@ -508,20 +476,13 @@ def kernel_fft_evaluate(method = 1, indexing = 'xy', *arg, **kwargs):
         [ny, nx] = Nshape[:] # TODO: indexing of arrays
         if method == 1:
             # fftw objects, either a global object or created at every call
-            if ('fft_object' in kwargs) & ('ifft_object' in kwargs):
+            if ('fft_object' in kwargs):
                 fft_object = kwargs['fft_object']
-                ifft_object = kwargs['ifft_object']
-                a = fft_object.input_array
-                b = fft_object.output_array
             else:
-                a = pyfftw.empty_aligned((2*ny, 2*nx), dtype='float64')
-                # Save efforts by knowing that a is real
-                b = pyfftw.empty_aligned((2*ny, nx+1), dtype='complex128')
-                # Real to complex FFT Over the both axes
-                fft_object = pyfftw.FFTW(a, b, axes=(
-                    0, 1), flags=('FFTW_MEASURE', ))
-                ifft_object = pyfftw.FFTW(b, a, axes=(
-                    0, 1), direction='FFTW_BACKWARD', flags=('FFTW_MEASURE', 'FFTW_DESTROY_INPUT'))
+                fft_object = create_fftw_plan([nx,ny],ifft_flag=False)
+
+            a = fft_object.input_array
+            b = fft_object.output_array
             
             # To get the Fourier transform of the kernel
             if kernel_flag == 0:
@@ -536,22 +497,13 @@ def kernel_fft_evaluate(method = 1, indexing = 'xy', *arg, **kwargs):
         [ny, nx, nz] = Nshape[:]
         if method == 1:
             # fftw objects, either a global object or created at every call
-            if ('fft_object' in kwargs) & ('ifft_object' in kwargs):
+            if ('fft_object' in kwargs):
                 fft_object = kwargs['fft_object']
-                ifft_object = kwargs['ifft_object']
-                a = fft_object.input_array
-                b = fft_object.output_array
             else:
-                a = pyfftw.empty_aligned((2*ny, 2*nx, 2*nz), dtype='float64')
-                # Save efforts by knowing that a is real
-                b = pyfftw.empty_aligned(
-                    (2*ny, 2*nx, nz+1), dtype='complex128')
-                # Real to complex FFT Over the both axes
-                fft_object = pyfftw.FFTW(a, b, axes=(
-                    0, 1, 2), flags=('FFTW_MEASURE', ))
-                ifft_object = pyfftw.FFTW(b, a, axes=(
-                    0, 1, 2), direction='FFTW_BACKWARD', flags=('FFTW_MEASURE', 'FFTW_DESTROY_INPUT'))
-            
+                fft_object = create_fftw_plan([nx,ny,nz],ifft_flag=False)
+
+            a = fft_object.input_array
+            b = fft_object.output_array
             # To get the Fourier transform of the kernel
             if kernel_flag == 0:
                 a[:][:][:] = kernel
@@ -563,3 +515,54 @@ def kernel_fft_evaluate(method = 1, indexing = 'xy', *arg, **kwargs):
     else:
         raise Exception('Haven\'t implemented convolution for %dD!' % dim)
     return kernel_hat
+
+def create_fftw_plan(n, ifft_flag = True):
+    """Create Pyfftw plan
+    n, array of [nx[,ny[,nz]]], 1,2,3D are accepted
+    ifft_flag = True, whether to create ifft object at the same time. Notice that, to save memory, this use
+    input array a of fft object as output array, it uses output array b of fft objects as input array.
+    Users should be cautious about that this sharing array issue.
+    """
+    dim = len(n)
+    if dim == 1:
+        nx = n[0]
+        a = pyfftw.empty_aligned((2*nx), dtype='float64')
+        # Save efforts by knowing that a is real
+        b = pyfftw.empty_aligned((nx+1), dtype='complex128')
+        # Real to complex FFT Over the both axes
+        fft_object = pyfftw.FFTW(a, b, axes=(
+            -1,), flags=('FFTW_MEASURE', ))
+        if ifft_flag:
+            ifft_object = pyfftw.FFTW(b, a, axes=(
+                -1,), direction='FFTW_BACKWARD', flags=('FFTW_MEASURE', 'FFTW_DESTROY_INPUT'))
+    elif dim == 2:
+        nx, ny = n[:]
+        a = pyfftw.empty_aligned((2*ny, 2*nx), dtype='float64')
+        # Save efforts by knowing that a is real
+        b = pyfftw.empty_aligned((2*ny, nx+1), dtype='complex128')
+        # Real to complex FFT Over the both axes
+        fft_object = pyfftw.FFTW(a, b, axes=(
+            0, 1), flags=('FFTW_MEASURE', ))
+        if ifft_flag:
+            ifft_object = pyfftw.FFTW(b, a, axes=(
+                0, 1), direction='FFTW_BACKWARD', flags=('FFTW_MEASURE', 'FFTW_DESTROY_INPUT'))
+    elif dim == 3:
+        nx, ny, nz = n[:]
+        a = pyfftw.empty_aligned((2*ny, 2*nx, 2*nz), dtype='float64')
+        # Save efforts by knowing that a is real
+        b = pyfftw.empty_aligned(
+            (2*ny, 2*nx, nz+1), dtype='complex128')
+        # Real to complex FFT Over the both axes
+        fft_object = pyfftw.FFTW(a, b, axes=(
+            0, 1, 2), flags=('FFTW_MEASURE', ))
+        if ifft_flag:
+            ifft_object = pyfftw.FFTW(b, a, axes=(
+                0, 1, 2), direction='FFTW_BACKWARD', flags=('FFTW_MEASURE', 'FFTW_DESTROY_INPUT'))
+    else:
+        raise Exception('It work only in 1,2,3D!')
+    if ifft_flag:
+        return fft_object, ifft_object
+    else:
+        return fft_object
+
+    
