@@ -23,28 +23,23 @@ def real(x): # TODO, this is the function to choose single or double
     else:
         return np.float64(x)
 
-# Donev: You should write these routines to be more specific and less general
-# So instead of having a general **kwargs you should always require the user to pass in the kernel_hat, and always require the user to pass in fft_object etc.
-# It is nice to have flexible code but it reads to code duplication and for scientific applications you want to make the code efficient and force
-# the user to call the code in an efficient manner, rather than make it most convenient
-# You can also make it simple by always taking in 3d arrays and making 2d mean nz=1 (one cell in z) and 1d mean nz=ny=1.
-def vel_convolution_fft(scalar, method=1, *args, **kwargs):
-    """ Compute convolution of given 'scalar' with kernel, 
-    dimension of 1, 2, 3 is accepted. 
-    """
-    if ('kernel_hat' in kwargs):
-        # User provides with Fourier transform of the kernel
-        kernel_hat = kwargs['kernel_hat']
-        assert isinstance(kernel_hat, np.ndarray)
 
-    Nshape = scalar.shape
+def vel_convolution_fft(source, kernel_hat, method=1, *args, **kwargs):
+    """ Compute convolution of given 'source' with kernel, 
+    dimension of 1, 2, 3 is accepted. 'source' ndarrays of nx*ny*nz, 
+    each component of 'source' is ndarrays in corresponding dimension
+    """
+    # User provides with Fourier transform of the kernel
+    assert isinstance(kernel_hat, np.ndarray)
+
+    Nshape = source.shape
     dim = len(Nshape)
     if dim == 1:
         # One dimension 
         nx = Nshape[0]
         if method == 1:
-            scalar_d = np.zeros(2*nx) # Double zero-pad to do method 1
-            scalar_d[:nx] = scalar
+            source_d = np.zeros(2*nx) # Double zero-pad to do method 1
+            source_d[:nx] = source
             # fftw objects, either a global object or created at every call
             if ('fft_object' in kwargs) & ('ifft_object' in kwargs):
                 # fftw objects is passed as input, it's used globally
@@ -59,10 +54,10 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
             b = fft_object.output_array
             
 
-            # Fourier transform of the scalar
-            a[:] = scalar_d
-            scalar_d_hat = (fft_object()).copy()
-            b[:] = scalar_d_hat * kernel_hat
+            # Fourier transform of the source
+            a[:] = source_d
+            source_d_hat = (fft_object()).copy()
+            b[:] = source_d_hat * kernel_hat
             v = (ifft_object()).copy()
 
             return v[:nx]
@@ -70,8 +65,8 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
         # two dimension
         [ny, nx] = Nshape[:]
         if method == 1:
-            scalar_d = np.zeros([2*ny, 2*nx]) # Double zero-pad to do method 1
-            scalar_d[:ny, :nx] = scalar
+            source_d = np.zeros([2*ny, 2*nx]) # Double zero-pad to do method 1
+            source_d[:ny, :nx] = source
             # fftw objects, either a global object or created at every call
             if ('fft_object' in kwargs) & ('ifft_object' in kwargs):
                 fft_object = kwargs['fft_object']
@@ -82,11 +77,11 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
             a = fft_object.input_array
             b = fft_object.output_array
 
-            # Fourier transform of the scalar
-            a[:][:] = scalar_d
-            scalar_d_hat = (fft_object()).copy()
+            # Fourier transform of the source
+            a[:][:] = source_d
+            source_d_hat = (fft_object()).copy()
 
-            b[:][:] = scalar_d_hat * kernel_hat
+            b[:][:] = source_d_hat * kernel_hat
             v = (ifft_object()).copy()
             return v[:ny, :nx]
 
@@ -94,8 +89,8 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
         # three dimension
         [ny, nx, nz] = Nshape[:]
         if method == 1:
-            scalar_d = np.zeros([2*ny, 2*nx, 2*nz]) # Double zero-pad to do method 1
-            scalar_d[:ny, :nx, :nz] = scalar
+            source_d = np.zeros([2*ny, 2*nx, 2*nz]) # Double zero-pad to do method 1
+            source_d[:ny, :nx, :nz] = source
             # fftw objects, either a global object or created at every call
             if ('fft_object' in kwargs) & ('ifft_object' in kwargs):
                 fft_object = kwargs['fft_object']
@@ -106,16 +101,75 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
             a = fft_object.input_array
             b = fft_object.output_array
             
-            # Fourier transform of the scalar
-            a[:][:][:] = scalar_d
-            scalar_d_hat = (fft_object()).copy()
+            # Fourier transform of the source
+            a[:][:][:] = source_d
+            source_d_hat = (fft_object()).copy()
 
-            b[:][:][:] = scalar_d_hat * kernel_hat
+            b[:][:][:] = source_d_hat * kernel_hat
             v = (ifft_object()).copy()
             return v[:ny, :nx, :nz]
     else:
         raise Exception('Haven\'t implemented convolution for %dD!' % dim)
     return 0
+
+
+def vel_convolution_fft_vector(source, kernel_hat, method=1, *args, **kwargs):
+    """ Compute convolution of given 'source' with kernel, 
+    dimension of 1, 2, 3 is accepted. 'source' ndarrays of ny*nx*nz*D, 
+    At each point, source is a D*D mobility matrix
+    kernel_hat is the fourier transform of the kernel 2ny*2nx*(nz+1)*D*D
+    """
+    # This wrapper function serves for vector source convolved with vector kernel, I want to keep the generality of 
+    # vel_convolution_fft function, which only deal with nx*ny*nz tensor such that users can still call that function to compute scalar kernel
+    assert len(source.shape)+1 == len(kernel_hat.shape)
+    assert source.shape[-1] == kernel_hat.shape[-1] == kernel_hat.shape[-2]
+
+    D = source.shape[-1]
+    Nshape = source.shape[:-1]
+    dim = len(Nshape)
+    v = np.zeros_like(source)
+
+    if dim == 1:
+        # One dimension
+        nx = Nshape[0]
+        # fftw objects, either a global object or created at every call
+        if ('fft_object' in kwargs) & ('ifft_object' in kwargs):
+            fft_object = kwargs['fft_object']
+            ifft_object = kwargs['ifft_object']
+        else:
+            fft_object, ifft_object = create_fftw_plan([nx])
+        for i in range(D):
+            for j in range(D):
+                v[:,i] += vel_convolution_fft(source[:,j], kernel_hat[:,i,j], method = method, fft_object = fft_object, ifft_object = ifft_object)
+
+    elif dim == 2:
+        # two dimension
+        [ny, nx] = Nshape[:]
+        # fftw objects, either a global object or created at every call
+        if ('fft_object' in kwargs) & ('ifft_object' in kwargs):
+            fft_object = kwargs['fft_object']
+            ifft_object = kwargs['ifft_object']
+        else:
+            fft_object, ifft_object = create_fftw_plan([nx,ny])
+        for i in range(D):
+            for j in range(D):
+                v[:,:,i] += vel_convolution_fft(source[:,:,j], kernel_hat[:,:,i,j], method = method, fft_object = fft_object, ifft_object = ifft_object)
+
+    elif dim == 3:
+        # three dimension
+        [ny, nx, nz] = Nshape[:]
+        # fftw objects, either a global object or created at every call
+        if ('fft_object' in kwargs) & ('ifft_object' in kwargs):
+            fft_object = kwargs['fft_object']
+            ifft_object = kwargs['ifft_object']
+        else:
+            fft_object, ifft_object = create_fftw_plan([nx,ny,nz])
+        for i in range(D):
+            for j in range(D):
+                v[:,:,:,i] += vel_convolution_fft(source[:,:,:,j], kernel_hat[:,:,:,i,j], method = method, fft_object = fft_object, ifft_object = ifft_object)
+    else:
+        raise Exception('Haven\'t implemented convolution for %dD!' % dim)
+    return v
 
 # Donev: This works for a scalar kernel but in fact we work with vector forces and tensor kernels
 # The easiest way to do this is to treat the kernel as being a matrix (mobility matrix) of size (D,D) and the force (strength) a vector of of size (D)
@@ -124,12 +178,12 @@ def vel_convolution_fft(scalar, method=1, *args, **kwargs):
 # I am not sure what the best way to do that is but perhaps when the Just In Time compiler compiles the code it can see the value of D from the caller? 
 # Donev: Why is this limited only to d=2? It seems it also works in 3d equally well (it is an alternative method to periodizing).
 # I am not sure if Method 1 will work for a kernel that decays like 1/r instead of 1/r^3 (probably not) but in principle I think it will work, we can discuss on zoom
-def vel_convolution_nufft(source_location, source_strenth, num_modes, L,  eps=1e-4, method=1, shift_flag = 1, *args, **kwargs):
+def vel_convolution_nufft(source_location, source_strenth, kernel_hat, num_modes, L,  eps=1e-4, method=1, shift_flag = 1, *args, **kwargs):
     """ Compute convolution of given 'source_location' with kernel,
     only dimension of two is implemented yet. TODO
-    'source_location', the location of each point, not uniform 
-    'soruce_strenth', strenth of each point  
-    'num_modes', number of fourier modes in each direction
+    'source_location', the location of each point, not uniform, dim*nj
+    'source_strenth', strenth of each point, nj*D
+    'num_modes', number of fourier modes in each direction, nx*ny
     'L', length of the box
     'eps=1e-4', error of the nufft
     'method=1', only method 1 is implemented TODO
@@ -137,13 +191,9 @@ def vel_convolution_nufft(source_location, source_strenth, num_modes, L,  eps=1e
     """
     
     # fourier transform of the kernel is better to be evaluated only once.
-    if('kernel_hat' in kwargs):
-        kernel_hat = kwargs['kernel_hat']
-        assert isinstance(kernel_hat, np.ndarray)
-    else:
-        raise Exception(
-            'kernel_hat, fourier transform of kernel should be given')
-
+    assert isinstance(kernel_hat, np.ndarray)
+    assert kernel_hat.shape[-1]==kernel_hat.shape[-2]==source_strenth.shape[-1], "Matrix shape error!"
+    D = source_strenth.shape[-1]
     Nshape = source_location.shape
     dim = Nshape[0]
     assert dim == 2, "Dim should be 2!"
@@ -170,14 +220,17 @@ def vel_convolution_nufft(source_location, source_strenth, num_modes, L,  eps=1e
             xj = (xj-(xmax+xmin)/2)/Lx*np.pi
             yj = (yj-(ymax+ymin)/2)/Ly*np.pi
 
-        fk = np.zeros(num_modes, dtype=np.complex128, order='F')     
+        fk = np.zeros((nx,ny,D), dtype=np.complex128, order='F')     
         # TODO: Reuse finufft object.
-        ret = finufftpy.nufft2d1(xj, yj, source_strenth, -1, eps, nx, ny, fk, modeord=1)
+        ret = finufftpy.nufft2d1many(xj, yj, source_strenth, -1, eps, nx, ny, fk, modeord=1)
         assert ret == 0, "NUFFT not successful!"
-        v_hat = np.zeros((nx, ny, 2), order='F', dtype=np.complex128)
-        v_hat[:, :, 0] = fk * kernel_hat[0]
-        v_hat[:, :, 1] = fk * kernel_hat[1]
-        v = np.zeros((nj, 2), order='F', dtype=np.complex128) # Donev: The return result should be double64 not complex128
+        v_hat = np.zeros((nx, ny, D), order='F', dtype=np.complex128)
+        for i in range(D):
+            for j in range(D):
+                v_hat[:,:,i] += fk[:,:,j] * kernel_hat[:,:,i,j]
+        v = np.zeros((nj, D), order='F', dtype=np.complex128) 
+        # Donev: The return result should be double64 not complex128 
+        # Zhe: This is not implemented by finufft(At least for python interface), it output complex128 and I take the real part of it.
         ret = finufftpy.nufft2d2many(xj, yj, v, 1, eps, v_hat, modeord=1)
         assert ret == 0, "NUFFT not successful!"
         v = np.real(v)/(2*Lx*2*Ly)  # Real? # Donev: Make sure this is a real number not complex. Return only the real part
@@ -225,13 +278,6 @@ def kernel_evaluate(grids, kernel, periodic, L, indexing = 'xy'):
         Lx = L[0]
         x = grids[0]
         return __kernel_evaluate_1D(Lx, np.concatenate((x, x-Lx), axis=None), kernel, periodic)
-        # periodic_flag = ~(periodic == 0)
-        # scalar_d = kernel(x_d)
-        # if periodic_flag[0]:
-        #     for i in range(periodic[0]):
-        #         scalar_d = scalar_d + kernel(x_d+(i+1)*Lx)
-        #         scalar_d = scalar_d + kernel(x_d-(i+1)*Lx)
-        # return scalar_d
     if dim == 2:
         Lx, Ly = L[:]
         x, y = grids[:]
@@ -239,29 +285,6 @@ def kernel_evaluate(grids, kernel, periodic, L, indexing = 'xy'):
         y_d = np.concatenate((y, y-Ly), axis=None)
         grid_x, grid_y = np.meshgrid(x_d, y_d, indexing = indexing)
         return __kernel_evaluate_2D(Lx, Ly, grid_x, grid_y, kernel, periodic)
-        # periodic_flag = ~(periodic == 0)
-        # scalar_d = kernel(grid_x, grid_y)
-        # if periodic_flag[0]:
-        #     for i in range(periodic[0]):
-        #         if periodic_flag[1]:
-        #             for j in range(periodic[1]):
-        #                 scalar_d = scalar_d + \
-        #                     kernel(grid_x+(i+1)*Lx, grid_y+(j+1)*Ly)
-        #                 scalar_d = scalar_d + \
-        #                     kernel(grid_x+(i+1)*Lx, grid_y-(j+1)*Ly)
-        #                 scalar_d = scalar_d + \
-        #                     kernel(grid_x-(i+1)*Lx, grid_y+(j+1)*Ly)
-        #                 scalar_d = scalar_d + \
-        #                     kernel(grid_x-(i+1)*Lx, grid_y-(j+1)*Ly)
-        #         else:
-        #             scalar_d = scalar_d + kernel(grid_x+(i+1)*Lx, grid_y)
-        #             scalar_d = scalar_d + kernel(grid_x-(i+1)*Lx, grid_y)
-        # else:
-        #     if periodic_flag[1]:
-        #         for j in range(periodic[1]):
-        #             scalar_d = scalar_d + kernel(grid_x, grid_y+(j+1)*Ly)
-        #             scalar_d = scalar_d + kernel(grid_x, grid_y-(j+1)*Ly)
-        # return scalar_d
     elif dim == 3:
         Lx, Ly, Lz = L[:]
         x, y, z = grids[:]
@@ -270,76 +293,20 @@ def kernel_evaluate(grids, kernel, periodic, L, indexing = 'xy'):
         z_d = np.concatenate((z, z-Lz), axis=None)
         grid_x, grid_y, grid_z = np.meshgrid(x_d, y_d, z_d, indexing = indexing)
         return __kernel_evaluate_3D(Lx, Ly, Lz, grid_x, grid_y, grid_z, kernel, periodic)
-        # periodic_flag = ~(periodic == 0)
-        # scalar_d = kernel(grid_x, grid_y, grid_z)
-        # if periodic_flag[0]:
-        #     for i in range(periodic[0]):
-        #         if periodic_flag[1]:
-        #             for j in range(periodic[1]):
-        #                 if periodic_flag[2]:
-        #                     for k in range(periodic[2]):
-        #                         scalar_d += kernel(grid_x+(i+1)*Lx, grid_y+(j+1)*Ly, grid_z+(k+1)*Lz) + kernel(
-        #                             grid_x+(i+1)*Lx, grid_y+(j+1)*Ly, grid_z-(k+1)*Lz)
-        #                         scalar_d += kernel(grid_x+(i+1)*Lx, grid_y-(j+1)*Ly, grid_z+(k+1)*Lz) + kernel(
-        #                             grid_x+(i+1)*Lx, grid_y-(j+1)*Ly, grid_z-(k+1)*Lz)
-        #                         scalar_d += kernel(grid_x-(i+1)*Lx, grid_y+(j+1)*Ly, grid_z+(k+1)*Lz) + kernel(
-        #                             grid_x-(i+1)*Lx, grid_y+(j+1)*Ly, grid_z-(k+1)*Lz)
-        #                         scalar_d += kernel(grid_x-(i+1)*Lx, grid_y-(j+1)*Ly, grid_z+(k+1)*Lz) + kernel(
-        #                             grid_x-(i+1)*Lx, grid_y-(j+1)*Ly, grid_z-(k+1)*Lz)
-        #                 else:
-        #                     scalar_d += kernel(grid_x+(i+1)
-        #                                        * Lx, grid_y+(j+1)*Ly, grid_z)
-        #                     scalar_d += kernel(grid_x+(i+1)
-        #                                        * Lx, grid_y-(j+1)*Ly, grid_z)
-        #                     scalar_d += kernel(grid_x-(i+1)
-        #                                        * Lx, grid_y+(j+1)*Ly, grid_z)
-        #                     scalar_d += kernel(grid_x-(i+1)
-        #                                        * Lx, grid_y-(j+1)*Ly, grid_z)
-        #         else:
-        #             if periodic_flag[2]:
-        #                 for k in range(periodic[2]):
-        #                     scalar_d += kernel(grid_x+(i+1)*Lx, grid_y, grid_z+(k+1)*Lz) + kernel(
-        #                         grid_x+(i+1)*Lx, grid_y, grid_z-(k+1)*Lz)
-        #                     scalar_d += kernel(grid_x-(i+1)*Lx, grid_y, grid_z+(k+1)*Lz) + kernel(
-        #                         grid_x-(i+1)*Lx, grid_y, grid_z-(k+1)*Lz)
-        #             else:
-        #                 scalar_d += kernel(grid_x+(i+1)*Lx, grid_y, grid_z)
-        #                 scalar_d += kernel(grid_x-(i+1)*Lx, grid_y, grid_z)
-        # else:
-        #     if periodic_flag[1]:
-        #         for j in range(periodic[1]):
-        #             if periodic_flag[2]:
-        #                 for k in range(periodic[2]):
-        #                     scalar_d += kernel(grid_x, grid_y+(j+1)*Ly, grid_z+(k+1)*Lz) + kernel(
-        #                         grid_x, grid_y+(j+1)*Ly, grid_z-(k+1)*Lz)
-        #                     scalar_d += kernel(grid_x, grid_y-(j+1)*Ly, grid_z+(k+1)*Lz) + kernel(
-        #                         grid_x, grid_y-(j+1)*Ly, grid_z-(k+1)*Lz)
-        #             else:
-        #                 scalar_d += kernel(grid_x, grid_y+(j+1)*Ly, grid_z) + \
-        #                     kernel(grid_x, grid_y-(j+1)*Ly, grid_z)
-        #     else:
-        #         if periodic_flag[2]:
-        #             for k in range(periodic[2]):
-        #                 scalar_d += kernel(grid_x, grid_y, grid_z+(k+1)*Lz) + \
-        #                     kernel(grid_x, grid_y, grid_z-(k+1)*Lz)
-        # return scalar_d
     else:
         raise Exception('Only 1,2,3 dimension(s) are supported!')
 
 
-# Numba requires same shape of Numba array of function arguments. So We need to use seperate jitted function for different dimensions.
-# Donev: I am a little worried about using lambda functions here. Will they be inlined? What is the overhead of using a lambda function?
-# You need to do testing to check this
-# Instead, the right way to do this in python is to make a class Kernel that has an object evaluate. But this may not work with numba...
 @jit(nopython = True)
 def __kernel_evaluate_1D(Lx, x_d, kernel, periodic):
     periodic_flag = ~(periodic == 0)
     scalar_d = kernel(x_d)
     if periodic_flag[0]:
         for i in range(periodic[0]):
-            scalar_d = scalar_d + kernel(x_d+(i+1)*Lx) # Donev: Will numba inline kernel ?
+            scalar_d = scalar_d + kernel(x_d+(i+1)*Lx) # Donev: Will numba inline kernel ? # Zhe: The test turns out it will.
             scalar_d = scalar_d + kernel(x_d-(i+1)*Lx)
     return scalar_d
+
 
 @jit(nopython = True)
 def __kernel_evaluate_2D(Lx, Ly, grid_x, grid_y, kernel, periodic):
@@ -366,6 +333,8 @@ def __kernel_evaluate_2D(Lx, Ly, grid_x, grid_y, kernel, periodic):
                 scalar_d = scalar_d + kernel(grid_x, grid_y+(j+1)*Ly)
                 scalar_d = scalar_d + kernel(grid_x, grid_y-(j+1)*Ly)
     return scalar_d
+
+
 
 @jit(nopython = True)
 def __kernel_evaluate_3D(Lx, Ly, Lz, grid_x, grid_y, grid_z, kernel, periodic):
