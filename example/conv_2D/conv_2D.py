@@ -4,7 +4,6 @@ from __future__ import division, print_function
 import sys
 sys.path.append('/home/cecil/Cecil/Projects/convolution_fft/src')
 import pyfftw
-import multiprocessing
 # import copy
 import numpy as np
 import kernel.kernel as kernel_mod
@@ -21,21 +20,16 @@ y = (np.linspace(0, ny-1, ny)+0.5)*dy
 periodic = np.array([1, 0])
 method = 1
 if method == 1:
-    a = pyfftw.empty_aligned((2*ny, 2*nx), dtype='float64')
-    # Save efforts by knowing that a is real
-    b = pyfftw.empty_aligned((2*ny, nx+1), dtype='complex128')
-    # Real to complex FFT Over the both axes
-    fft_object = pyfftw.FFTW(a, b, axes=(
-        0, 1), flags=('FFTW_MEASURE', ))
-    ifft_object = pyfftw.FFTW(b, a, axes=(
-        0, 1), direction='FFTW_BACKWARD', flags=('FFTW_MEASURE', 'FFTW_DESTROY_INPUT'))
+    fft_object, ifft_object = kernel_mod.create_fftw_plan([nx,ny])
+    a = fft_object.input_array
+    b = fft_object.output_array
 else:
     raise Exception('Only Method = 1 is supported now.')
 scalar = np.ones([ny, nx])
 
-kernel_hat = conv.kernel_fft_evaluate(L=[Lx,Ly], x=[x,y], kernel_handle=kernel_mod.kernel_uniform_2D,
+kernel_hat = kernel_mod.kernel_fft_evaluate(L=[Lx,Ly], x=[x,y], kernel_handle=kernel_mod.kernel_uniform_2D,
                              periodic=periodic, fft_object=fft_object, ifft_object=ifft_object)
-v = conv.vel_convolution_fft(scalar, kernel_hat = kernel_hat, fft_object=fft_object, ifft_object=ifft_object)
+v = conv.vel_convolution_fft(scalar, kernel_hat, fft_object=fft_object, ifft_object=ifft_object)
 
 # judge whether this test is successful
 print(np.allclose(v,np.ones([ny,nx])*ny*nx*(1+2*periodic[0])*(1+2*periodic[1])))
@@ -46,22 +40,17 @@ print(np.allclose(v,np.ones([ny,nx])*ny*nx*(1+2*periodic[0])*(1+2*periodic[1])))
 # kernel_flag = 1
 
 if method == 1:
-    a = pyfftw.empty_aligned((2*nx), dtype='float64')
-    # Save efforts by knowing that a is real
-    b = pyfftw.empty_aligned((nx+1), dtype='complex128')
-    # Real to complex FFT Over the both axes
-    fft_object = pyfftw.FFTW(a, b, axes=(
-        -1,), flags=('FFTW_MEASURE', ))
-    ifft_object = pyfftw.FFTW(b, a, axes=(
-        -1,), direction='FFTW_BACKWARD', flags=('FFTW_MEASURE', 'FFTW_DESTROY_INPUT'))
+    fft_object, ifft_object = kernel_mod.create_fftw_plan([nx])
+    a = fft_object.input_array
+    b = fft_object.output_array
 else:
     raise Exception('Only Method = 1 is supported now.')
 
 scalar = np.ones(nx)
 
-kernel_hat = conv.kernel_fft_evaluate(L=[Lx], x=[x], kernel_handle=kernel_mod.kernel_uniform_1D,
+kernel_hat = kernel_mod.kernel_fft_evaluate(L=[Lx], x=[x], kernel_handle=kernel_mod.kernel_uniform_1D,
                              periodic=periodic[1:], fft_object=fft_object, ifft_object=ifft_object)
-v = conv.vel_convolution_fft(scalar, kernel_hat = kernel_hat, fft_object=fft_object, ifft_object=ifft_object)
+v = conv.vel_convolution_fft(scalar, kernel_hat, fft_object=fft_object, ifft_object=ifft_object)
 
 # judge whether this test is successful
 print(np.allclose(v, np.ones(nx) *
@@ -79,9 +68,9 @@ y = (np.linspace(0, ny-1, ny)+0.5)*dy
 scalar = np.ones([ny, nx])
 periodic = np.array([1, 0])
 kernel = np.ones([ny*2, nx*2])*(1+2*periodic[0])*(1+2*periodic[1])
-kernel_hat = conv.kernel_fft_evaluate(kernel = kernel)
+kernel_hat = kernel_mod.kernel_fft_evaluate(kernel = kernel)
 
-v = conv.vel_convolution_fft(scalar, kernel_hat = kernel_hat)
+v = conv.vel_convolution_fft(scalar, kernel_hat)
 print(np.allclose(v, np.ones([ny, nx])*ny *
                   nx*(1+2*periodic[0])*(1+2*periodic[1])))
 
@@ -98,8 +87,8 @@ z = (np.linspace(0, nz-1, nz)+0.5)*dz
 scalar = np.ones([ny, nx, nz])
 periodic = np.array([1, 0, 2])
 kernel = np.ones([ny*2, nx*2, nz*2])*(1+2*periodic[0])*(1+2*periodic[1])*(1+2*periodic[2])
-kernel_hat = conv.kernel_fft_evaluate(kernel = kernel)
-v = conv.vel_convolution_fft(scalar, kernel_hat=kernel_hat)
+kernel_hat = kernel_mod.kernel_fft_evaluate(kernel = kernel)
+v = conv.vel_convolution_fft(scalar, kernel_hat)
 print(np.allclose(v, np.ones([ny, nx, nz])*ny *
                   nx*nz*(1+2*periodic[0])*(1+2*periodic[1])*(1+2*periodic[2])))
 
