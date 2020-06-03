@@ -1,7 +1,7 @@
 import sys
 sys.path.append('/home/cecil/Cecil/Projects/convolution_fft/src')
 import convolution_fft as conv
-import kernel.kernel as kernel_mod
+import kernel.kernel_func as kernel_mod
 import numpy as np
 import time
 import timeit

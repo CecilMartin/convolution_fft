@@ -4,7 +4,7 @@ import mobility_numba as mob_1
 import mobility_times_force_numba as mob_2
 a = 1
 eta = 1
-h = 1
+h = 0.1
 number = 100
 L = 100
 

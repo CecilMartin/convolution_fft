@@ -4,7 +4,7 @@ import finufftpy
 from numba import jit, prange
 # import copy
 import multiprocessing
-from kernel.kernel import create_fftw_plan
+from kernel.kernel_func import create_fftw_plan
 
 # These lines set the precision of the cuda code
 # to single or double. Set the precision

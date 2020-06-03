@@ -6,7 +6,7 @@ sys.path.append('/home/cecil/Cecil/Projects/convolution_fft/src')
 import pyfftw
 # import copy
 import numpy as np
-import kernel.kernel as kernel_mod
+import kernel.kernel_func as kernel_mod
 import convolution_fft as conv
 
 # %%

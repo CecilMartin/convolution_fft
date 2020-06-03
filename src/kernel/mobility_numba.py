@@ -4,12 +4,12 @@ import scipy.sparse
 
 # Try to import numba
 try:
-  from numba import njit, prange
+  from numba import njit(fastmath = True), prange
 except ImportError:
   print('numba not found')
 
 
-@njit(parallel=True)
+@njit(fastmath = True)
 def no_wall_mobility_trans_trans_numba(r_vectors, eta, a):
     '''
     Returns the mobility at the blob level to the force
@@ -77,7 +77,7 @@ def no_wall_mobility_trans_trans_numba(r_vectors, eta, a):
     M[2,1] = M[1,2]
     return M*norm_fact_f
 
-@njit(parallel=True)
+@njit(fastmath = True)
 # Donev: This is the main routine you need to edit since this is the first kernel you will focus on
 def single_wall_mobility_trans_trans_numba(r_vectors, h, eta, a):
     ''' 
@@ -134,7 +134,7 @@ def single_wall_mobility_trans_trans_numba(r_vectors, h, eta, a):
 
 
 # Donev: You will also need this function later when we do microrollers
-@njit(parallel=True)
+@njit(fastmath = True)
 def no_wall_mobility_trans_rot_numba(r_vectors, eta, a):
     ''' 
     Returns the mobility translation-rotation at the blob level to the torque 
@@ -178,7 +178,7 @@ def no_wall_mobility_trans_rot_numba(r_vectors, eta, a):
     return M*norm_fact_f
 
 
-@njit(parallel=True)
+@njit(fastmath = True)
 def single_wall_mobility_trans_rot_numba(r_vectors, h, eta, a):
     ''' 
     Returns the product of the mobility translation-rotation at the blob level to the torque 
@@ -223,7 +223,7 @@ def single_wall_mobility_trans_rot_numba(r_vectors, h, eta, a):
 
 
 
-@njit(parallel=True)
+@njit(fastmath = True)
 def no_wall_mobility_rot_rot_numba(r_vectors, eta, a):
     ''' 
     Returns the mobility rotation-rotation at the blob level to the torque 
@@ -280,7 +280,7 @@ def no_wall_mobility_rot_rot_numba(r_vectors, eta, a):
     return M*norm_fact_f
 
 
-@njit(parallel=True)
+@njit(fastmath = True)
 def single_wall_mobility_rot_rot_numba(r_vectors, h, eta, a):
     ''' 
     Returns the product of the mobility translation-rotation at the blob level to the torque 
