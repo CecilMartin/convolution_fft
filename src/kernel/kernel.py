@@ -5,9 +5,12 @@ import pyfftw
 # Configure PyFFTW to use all cores (the default is single-threaded)
 pyfftw.config.NUM_THREADS = multiprocessing.cpu_count()
 # pyfftw.config.PLANNER_EFFORT = 'FFTW_MEASURE'
+from numba.pycc import CC
+cc = CC('kernel_module')
 
 
 @jit(nopython = True)
+# @cc.export('kernel_uniform_2D','f8[:,:](f8[:,:],f8[:,:])')
 def kernel_uniform_2D(x,y):
     return np.ones(x.shape)
 
@@ -331,5 +334,9 @@ def create_fftw_plan(n, ifft_flag = True):
         return fft_object, ifft_object
     else:
         return fft_object
+        
+if __name__ == "__main__":
+    cc.compile()
+        
 
     
