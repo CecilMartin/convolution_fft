@@ -31,10 +31,10 @@ def vel_convolution_fft(source, kernel_hat, method=1, *args, **kwargs):
 
     Nshape = source.shape
     dim = len(Nshape)
-    if dim == 1:
-        # One dimension 
-        nx = Nshape[0]
-        if method == 1:
+    if method == 1:
+        if dim == 1:
+            # One dimension 
+            nx = Nshape[0]
             source_d = np.zeros(2*nx) # Double zero-pad to do method 1
             source_d[:nx] = source
             # fftw objects, either a global object or created at every call
@@ -58,10 +58,9 @@ def vel_convolution_fft(source, kernel_hat, method=1, *args, **kwargs):
             v = (ifft_object()).copy()
 
             return v[:nx]
-    elif dim == 2:
-        # two dimension
-        [ny, nx] = Nshape[:]
-        if method == 1:
+        elif dim == 2:
+            # two dimension
+            [ny, nx] = Nshape[:]
             source_d = np.zeros([2*ny, 2*nx]) # Double zero-pad to do method 1
             source_d[:ny, :nx] = source
             # fftw objects, either a global object or created at every call
@@ -82,10 +81,9 @@ def vel_convolution_fft(source, kernel_hat, method=1, *args, **kwargs):
             v = (ifft_object()).copy()
             return v[:ny, :nx]
 
-    elif dim == 3:
-        # three dimension
-        [ny, nx, nz] = Nshape[:]
-        if method == 1:
+        elif dim == 3:
+            # three dimension
+            [ny, nx, nz] = Nshape[:]
             source_d = np.zeros([2*ny, 2*nx, 2*nz]) # Double zero-pad to do method 1
             source_d[:ny, :nx, :nz] = source
             # fftw objects, either a global object or created at every call
@@ -105,9 +103,10 @@ def vel_convolution_fft(source, kernel_hat, method=1, *args, **kwargs):
             b[:][:][:] = source_d_hat * kernel_hat
             v = (ifft_object()).copy()
             return v[:ny, :nx, :nz]
+        else:
+            raise Exception('Haven\'t implemented convolution for %dD!' % dim)
     else:
-        raise Exception('Haven\'t implemented convolution for %dD!' % dim)
-    return 0
+        raise Exception('Only method 1 is implemented for now!')
 
 
 def vel_convolution_fft_vector(source, kernel_hat, method=1, *args, **kwargs):
@@ -175,11 +174,11 @@ def vel_convolution_fft_vector(source, kernel_hat, method=1, *args, **kwargs):
 # I am not sure what the best way to do that is but perhaps when the Just In Time compiler compiles the code it can see the value of D from the caller? 
 # Donev: Why is this limited only to d=2? It seems it also works in 3d equally well (it is an alternative method to periodizing).
 # I am not sure if Method 1 will work for a kernel that decays like 1/r instead of 1/r^3 (probably not) but in principle I think it will work, we can discuss on zoom
-def vel_convolution_nufft(source_location, source_strenth, kernel_hat, num_modes, L,  eps=1e-4, method=1, shift_flag = 1, *args, **kwargs):
+def vel_convolution_nufft(source_location, source_strength, kernel_hat, num_modes, L,  eps=1e-4, method=1, shift_flag = 1, *args, **kwargs):
     """ Compute convolution of given 'source_location' with kernel,
     only dimension of two is implemented yet. TODO
     'source_location', the location of each point, not uniform, dim*nj
-    'source_strenth', strenth of each point, nj*D
+    'source_strength', strength of each point, nj*D
     'num_modes', number of fourier modes in each direction, nx*ny
     'L', length of the box
     'eps=1e-4', error of the nufft
@@ -189,13 +188,13 @@ def vel_convolution_nufft(source_location, source_strenth, kernel_hat, num_modes
     
     # fourier transform of the kernel is better to be evaluated only once.
     assert isinstance(kernel_hat, np.ndarray)
-    assert kernel_hat.shape[-1]==kernel_hat.shape[-2]==source_strenth.shape[-1], "Matrix shape error!"
-    D = source_strenth.shape[-1]
+    assert kernel_hat.shape[-1]==kernel_hat.shape[-2]==source_strength.shape[-1], "Matrix shape error!"
+    D = source_strength.shape[-1]
     Nshape = source_location.shape
     dim = Nshape[0]
     assert dim == 2, "Dim should be 2!"
-    nx, ny = num_modes[:]
     if method == 1:
+        nx, ny = num_modes[:]
         xj, yj = source_location
         nj = len(xj)
         if shift_flag:
@@ -219,7 +218,7 @@ def vel_convolution_nufft(source_location, source_strenth, kernel_hat, num_modes
 
         fk = np.zeros((nx,ny,D), dtype=np.complex128, order='F')     
         # TODO: Reuse finufft object.
-        ret = finufftpy.nufft2d1many(xj, yj, source_strenth, -1, eps, nx, ny, fk, modeord=1)
+        ret = finufftpy.nufft2d1many(xj, yj, source_strength, -1, eps, nx, ny, fk, modeord=1)
         assert ret == 0, "NUFFT not successful!"
         v_hat = np.zeros((nx, ny, D), order='F', dtype=np.complex128)
         for i in range(D):
@@ -232,13 +231,15 @@ def vel_convolution_nufft(source_location, source_strenth, kernel_hat, num_modes
         assert ret == 0, "NUFFT not successful!"
         v = np.real(v)/(2*Lx*2*Ly)  # Real? # Donev: Make sure this is a real number not complex. Return only the real part
         return v
+    else:
+        raise Exception('Only method 1 is implemented for now!')
 
 # Donev: You should learn how to use NUMBA and write this in numba. There is a CUDA version in ConvolutionAdvection already as well
 @jit(nopython = True)
-def vel_direct_convolution(scalar, source_strenth, kernel_handle, L, periodic):
+def vel_direct_convolution(scalar, source_strength, kernel_handle, L, periodic):
     """ Direct convolution, which is for comparison with vel_convolution_nufft
     """
-    Np = len(source_strenth)
+    Np = len(source_strength)
     dim = len(L)
     v = np.zeros(Np)
     if dim == 2:
@@ -257,7 +258,7 @@ def vel_direct_convolution(scalar, source_strenth, kernel_handle, L, periodic):
                 # xd = x[i]-x[j]-L[0]*kernel_index_x
                 # yd = y[i]-y[j]-L[1]*kernel_index_y
                 # kernel = kernel_handle(xd,yd).sum()
-                v[i] += kernel * source_strenth[j]
+                v[i] += kernel * source_strength[j]
     else:
         raise Exception("Not implemented yet!")
     return v
