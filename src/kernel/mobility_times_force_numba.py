@@ -123,6 +123,10 @@ def no_wall_mobility_trans_times_force_numba(r_vectors, force, eta, a, L):
             u[i,0] += (Mxx * force[j,0] + Mxy * force[j,1] + Mxz * force[j,2]) * norm_fact_f
             u[i,1] += (Myx * force[j,0] + Myy * force[j,1] + Myz * force[j,2]) * norm_fact_f
             u[i,2] += (Mzx * force[j,0] + Mzy * force[j,1] + Mzz * force[j,2]) * norm_fact_f
+
+            # (Mxx * force[j,0] + Mxy * force[j,1] + Mxz * force[j,2]) * norm_fact_f
+            # (Myx * force[j,0] + Myy * force[j,1] + Myz * force[j,2]) * norm_fact_f
+            # (Mzx * force[j,0] + Mzy * force[j,1] + Mzz * force[j,2]) * norm_fact_f
             #----------------------------------------------------------            
 
   return u.flatten()

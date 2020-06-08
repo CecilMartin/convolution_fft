@@ -10,9 +10,9 @@ except ImportError:
 
 eps = np.finfo(float).eps # TODO: Double and single precision
 
-# fastmath and parallel mode would even make it slower actually
+
 # Donev: If numba has an "inline" tag add this tag to this function to encourage inlining it inside loops or other functions
-@njit(inline='always')
+@njit(inline='always', fastmath = True)
 def no_wall_mobility_trans_trans_numba(r_vectors, eta, a):
     '''
     Returns the mobility at the blob level to the force
@@ -72,7 +72,7 @@ def no_wall_mobility_trans_trans_numba(r_vectors, eta, a):
 
 
 
-@njit(inline='always')
+@njit(inline='always', fastmath = True)
 def no_wall_mobility_trans_trans_numba_many(r_vectors, eta, a):
     '''
     Returns the mobility at the blob level to the force
@@ -133,8 +133,77 @@ def no_wall_mobility_trans_trans_numba_many(r_vectors, eta, a):
             M_many[i,j,:,:] = M*norm_fact_f
     return M_many
 
+@njit(parallel = True, inline='always', fastmath = True)
+def no_wall_mobility_trans_trans_numba_many_no_matrix(r_vectors, force, eta, a):
+    '''
+    Returns the mobility at the blob level to the force
+    on the blobs. Mobility for particles in an unbounded domain, it uses
+    the standard RPY tensor.
 
-@njit(inline='always')
+    This function uses numba.
+    '''
+    global eps
+    N = r_vectors.size // 3
+    r_vectors = r_vectors.reshape(N, 3)
+    force = force.reshape(N, 3)
+    u = np.zeros((N, 3))
+    # M_many = np.zeros((N,N,3,3))
+    inva = 1.0 / a
+    norm_fact_f = 1.0 / (8.0 * np.pi * eta * a)
+    for i in prange(N):
+        for j in range(N):
+            
+            # Compute vector between particles i and j
+            # Normalize distance with hydrodynamic radius
+            rx = (r_vectors[i,0]-r_vectors[j,0]) * inva
+            ry = (r_vectors[i,1]-r_vectors[j,1]) * inva
+            rz = (r_vectors[i,2]-r_vectors[j,2]) * inva
+            r2 = rx*rx + ry*ry + rz*rz
+            r = np.sqrt(r2)
+
+            # M = np.zeros((3,3))
+            if r > 2:
+                invr = 1.0 / r
+                invr2 = invr * invr
+                c1 = 1.0 + 2.0 / (3.0 * r2)
+                c2 = (1.0 - 2.0 * invr2) * invr2
+                Mxx = (c1 + c2*rx*rx) * invr
+                Mxy = (c2*rx*ry) * invr
+                Mxz = (c2*rx*rz) * invr
+                Myy = (c1 + c2*ry*ry) * invr
+                Myz = (c2*ry*rz) * invr
+                Mzz = (c1 + c2*rz*rz) * invr
+            else:
+                # Deal with r->0+
+                # eps = np.finfo(float).eps # TODO:Double and single precision
+                r_hat = np.sqrt((rx+eps)**2+(ry+eps)**2+(rz+eps)**2)
+                rx_hat = rx/r_hat
+                ry_hat = ry/r_hat
+                rz_hat = rz/r_hat
+                c1 = 4.0/3.0 * (1.0 - 9.0/32.0 * r)
+                c2 = 4.0/3.0 * 3.0/32.0 * r
+                Mxx = c1 + c2 * rx_hat * rx_hat
+                Mxy =      c2 * rx_hat * ry_hat
+                Mxz =      c2 * rx_hat * rz_hat
+                Myy = c1 + c2 * ry_hat * ry_hat
+                Myz =      c2 * ry_hat * rz_hat
+                Mzz = c1 + c2 * rz_hat * rz_hat
+            
+            Myx = Mxy
+            Mzx = Mxz
+            Mzy = Myz
+            
+            u[i,0] += (Mxx * force[j,0] + Mxy * force[j,1] + Mxz * force[j,2]) * norm_fact_f
+            u[i,1] += (Myx * force[j,0] + Myy * force[j,1] + Myz * force[j,2]) * norm_fact_f
+            u[i,2] += (Mzx * force[j,0] + Mzy * force[j,1] + Mzz * force[j,2]) * norm_fact_f
+                    
+            # M.dot(np.random.rand(3)) # mimic the cost of M*f in Floren's code
+            # M_many[i,j,:,:] = M*norm_fact_f
+    # return M_many
+    return u
+
+
+@njit(inline='always', fastmath = True)
 def single_wall_mobility_trans_trans_numba(r_vectors, h, eta, a):
     ''' 
     Returns the translational mobility at the blob level to the force 
@@ -188,7 +257,7 @@ def single_wall_mobility_trans_trans_numba(r_vectors, h, eta, a):
 
 
 
-@njit(inline='always')
+@njit(inline='always', fastmath = True)
 def no_wall_mobility_trans_rot_numba(r_vectors, eta, a):
     ''' 
     Returns the mobility translation-rotation at the blob level to the torque 
@@ -232,7 +301,7 @@ def no_wall_mobility_trans_rot_numba(r_vectors, eta, a):
     return M*norm_fact_f
 
 
-@njit(inline='always')
+@njit(inline='always', fastmath = True)
 def single_wall_mobility_trans_rot_numba(r_vectors, h, eta, a):
     ''' 
     Returns the product of the mobility translation-rotation at the blob level to the torque 
@@ -281,7 +350,7 @@ def single_wall_mobility_trans_rot_numba(r_vectors, h, eta, a):
 
 
 
-@njit(inline='always')
+@njit(inline='always', fastmath = True)
 def no_wall_mobility_rot_rot_numba(r_vectors, eta, a):
     ''' 
     Returns the mobility rotation-rotation at the blob level to the torque 
@@ -338,7 +407,7 @@ def no_wall_mobility_rot_rot_numba(r_vectors, eta, a):
     return M*norm_fact_f
 
 
-@njit(inline='always')
+@njit(inline='always', fastmath = True)
 def single_wall_mobility_rot_rot_numba(r_vectors, h, eta, a):
     ''' 
     Returns the product of the mobility translation-rotation at the blob level to the torque 
