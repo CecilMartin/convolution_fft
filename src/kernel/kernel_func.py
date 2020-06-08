@@ -62,8 +62,19 @@ def mobilityUFRPY_x_dir_2(rx, ry):
     Mxx = c1 + c2 * rx*rx
     return Mxx
 
-
-
+# @jit(nopython = True, parallel = True)
+def kernel_grid_wrapper(kernel, eta, a):
+    def kernel_grid(grid_x, grid_y, grid_z):
+        ny, nx, nz = grid_x.shape
+        M = np.zeros((nx,ny,nz,3,3))
+        for i in range(nx):
+            for j in range(ny):
+                for k in range(nz):
+                    r_vectors = np.array([grid_x[i,j,k], grid_y[i,j,k], grid_z[i,j,k]])
+                    M[i,j,k,:,:] = kernel(r_vectors, eta, a)
+        return M
+    return kernel_grid
+                                
      
 # Donev: Numba will accelerate this greatly. Even though we only need to do this once, it is nice to make it more efficient and it should be easy
 # Remember that we need to sum over many periodic images sometimes so this should be somewhat efficient not plain python loops    
@@ -136,7 +147,7 @@ def __kernel_evaluate_2D(Lx, Ly, grid_x, grid_y, kernel, periodic):
 
 
 
-@jit(nopython = True)
+# @jit(nopython = True)
 def __kernel_evaluate_3D(Lx, Ly, Lz, grid_x, grid_y, grid_z, kernel, periodic):
     periodic_flag = ~(periodic == 0)
     scalar_d = kernel(grid_x, grid_y, grid_z)

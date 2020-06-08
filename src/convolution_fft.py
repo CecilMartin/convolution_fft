@@ -216,14 +216,15 @@ def vel_convolution_nufft(source_location, source_strength, kernel_hat, num_mode
             xj = (xj-(xmax+xmin)/2)/Lx*np.pi
             yj = (yj-(ymax+ymin)/2)/Ly*np.pi
 
-        fk = np.zeros((nx,ny,D), dtype=np.complex128, order='F')     
-        # TODO: Reuse finufft object.
-        ret = finufftpy.nufft2d1many(xj, yj, source_strength, -1, eps, nx, ny, fk, modeord=1)
-        assert ret == 0, "NUFFT not successful!"
+        fk = np.zeros((nx,ny), dtype=np.complex128, order='F')
         v_hat = np.zeros((nx, ny, D), order='F', dtype=np.complex128)
+        # TODO: Reuse finufft object.
         for i in range(D):
+            ret = finufftpy.nufft2d1(xj, yj, source_strength[:,i], -1, eps, nx, ny, fk, modeord=1)
+            assert ret == 0, "NUFFT not successful!"
             for j in range(D):
-                v_hat[:,:,i] += fk[:,:,j] * kernel_hat[:,:,i,j]
+                v_hat[:,:,j] += fk * kernel_hat[:,:,j,i]
+        # FOUND bug in finufftpy.nufft2d1many, should contact finufft group
         v = np.zeros((nj, D), order='F', dtype=np.complex128) 
         # Donev: The return result should be double64 not complex128 
         # Zhe: This is not implemented by finufft(At least for python interface), it output complex128 and I take the real part of it.
@@ -235,10 +236,11 @@ def vel_convolution_nufft(source_location, source_strength, kernel_hat, num_mode
         raise Exception('Only method 1 is implemented for now!')
 
 # Donev: You should learn how to use NUMBA and write this in numba. There is a CUDA version in ConvolutionAdvection already as well
-@jit(nopython = True)
+# @jit(nopython = True)
 def vel_direct_convolution(scalar, source_strength, kernel_handle, L, periodic):
     """ Direct convolution, which is for comparison with vel_convolution_nufft
     """
+    # TODO: D vectors
     Np = len(source_strength)
     dim = len(L)
     v = np.zeros(Np)

@@ -38,13 +38,13 @@ def my_test(test_object, number =100):
     print("Elapsed (after compilation) = %s" % ((end - start)/number))
     return 
 
-@njit(parallel=True)
+@njit
 def mobility_times_force_wrapper(func, r_vectors, force, eta, a):
     N = r_vectors.size // 3
     r_vectors = r_vectors.reshape(N, 3)
     force = force.reshape(N, 3)
     u = np.zeros((N, 3))
-    for i in prange(N):
+    for i in range(N):
         for j in range(N):
             M = func(r_vectors[i,:]-r_vectors[j,:], eta, a)
             u[i,:] += M.dot(force[j,:])
@@ -65,6 +65,6 @@ test_object_2 = 'mob_force.no_wall_mobility_trans_times_force_numba(r_vectors, f
 my_test(test_object_2,number=number)
 
 # No function wrapper
-test_object_3 = 'kernel_mob.no_wall_mobility_trans_trans_numba(r_vectors, eta, a)'
+test_object_3 = 'kernel_mob.no_wall_mobility_trans_trans_numba_many(r_vectors, eta, a)'
 my_test(test_object_3,number=number)
 
