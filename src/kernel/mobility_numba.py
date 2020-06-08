@@ -8,9 +8,13 @@ try:
 except ImportError:
   print('numba not found')
 
+<<<<<<< HEAD
 
 
 
+=======
+# Donev: If numba has an "inline" tag add this tag to this function to encourage inlining it inside loops or other functions
+>>>>>>> refs/remotes/origin/master
 @njit(fastmath = True)
 def no_wall_mobility_trans_trans_numba(r_vectors, eta, a):
     '''
@@ -21,7 +25,8 @@ def no_wall_mobility_trans_trans_numba(r_vectors, eta, a):
     This function uses numba.
     '''
     M = np.zeros((3,3))
-    fourOverThree = 4.0 / 3.0
+    fourOverThree = 4.0 / 3.0 # Donev: I think the code will be clearer and equally fast/slow if you put 4.0/3.0 in the code
+    # A good compiler with optimization on will evaluate all floating-point constants at compile time anyway
     inva = 1.0 / a
     norm_fact_f = 1.0 / (8.0 * np.pi * eta * a)
 
@@ -32,18 +37,8 @@ def no_wall_mobility_trans_trans_numba(r_vectors, eta, a):
     ry = r_vectors[1] * inva
     rz = r_vectors[2] * inva
 
-
-    # Donev: The code between the two lines is what should be moved to a separate routine that just evaluates the kernel given r(1:3) and force F(1:3)
-    # Donev: Self-mobility should be handled separately as the case of r==0
-    # But also note that you do not have to treat self-mobility separately because the RPY kernel is smooth at r=0 and if written carefully
-    # you can just evaluate it at r=0 without needing different code for r=0. It is worth doing
-    # ----------------------------------------------------------
     r2 = rx*rx + ry*ry + rz*rz
     r = np.sqrt(r2)
-
-    # TODO: We should not divide by zero
-    # Donev: This should be inside the r>2 if clause below. For r<2 the formulas do not actually involve 1/r, only r.
-
 
     if r > 2:
         invr = 1.0 / r
@@ -58,15 +53,15 @@ def no_wall_mobility_trans_trans_numba(r_vectors, eta, a):
         M[2,2] = (c1 + c2*rz*rz) * invr
     else:
         # Deal with r->0+
-        eps = 2.220446049250313e-16 # np.finfo(float).eps
+        eps = 2.220446049250313e-16 # np.finfo(float).eps # Donev: Why are you not using np.finfo(float).eps? In particular is this always double precision?
+        # Donev: In general hard-coded values like 2.22e-16 are not a good idea.
         r_hat = np.sqrt((rx+eps)**2+(ry+eps)**2+(rz+eps)**2)
         rx_hat = rx/r_hat
         ry_hat = ry/r_hat
         rz_hat = rz/r_hat
-        c1 = fourOverThree * (1.0 - 0.28125 * r)  # 9/32 = 0.28125 Exactly
-        # 3/32 = 0.09375 # Donev: It is not needed to use invr here so this can work for r==0
+        c1 = fourOverThree * (1.0 - 0.28125 * r)  # 9/32 = 0.28125 Exactly Donev: I think just using 9.0/32.0 is better to make it clear. This makes no real difference for speed
+        # 3/32 = 0.09375 # Donev: I would rather use 3.0/32.0 for clarity
         c2 = fourOverThree * 0.09375 * r
-        # Donev: Note that 1/r cancels with rx*ry so there is no singularity here for r=0 if you write this differently
         M[0,0] = c1 + c2 * rx_hat * rx_hat
         M[0,1] =      c2 * rx_hat * ry_hat
         M[0,2] =      c2 * rx_hat * rz_hat
@@ -79,6 +74,7 @@ def no_wall_mobility_trans_trans_numba(r_vectors, eta, a):
     M[2,1] = M[1,2]
     return M*norm_fact_f
 
+<<<<<<< HEAD
 
 
 
@@ -157,8 +153,10 @@ def no_wall_mobility_trans_trans_numba_many(r_vectors, eta, a):
             M_many[i,j,:,:] = M*norm_fact_f
     return M_many
 
+=======
+# Donev: Also add inline flag here and all other kernel functions
+>>>>>>> refs/remotes/origin/master
 @njit(fastmath = True)
-# Donev: This is the main routine you need to edit since this is the first kernel you will focus on
 def single_wall_mobility_trans_trans_numba(r_vectors, h, eta, a):
     ''' 
     Returns the translational mobility at the blob level to the force 
@@ -166,20 +164,19 @@ def single_wall_mobility_trans_trans_numba(r_vectors, h, eta, a):
 
     This function uses numba.
     '''
+    
+    # Donev added documentation/comment:
+    # Compute RPY without a wall first and then add wall corrections to it
+    # The numba compiler will hopefully inline this anyway:
     M = no_wall_mobility_trans_trans_numba(r_vectors, eta, a)
+    
+    # Compute wall-corrections using Swan-Brady:
     inva = 1.0 / a
     norm_fact_f = 1.0 / (8.0 * np.pi * eta * a)
 
     rx = r_vectors[0] * inva
     ry = r_vectors[1] * inva
     rz = (r_vectors[2] + 2*h) * inva  # Reciprocal in z
-
-    # Donev: Observe how code is repeated here from no_wall_mobility_trans_times_force_numba
-    # This is wrong and bad programming! The RPY kernel with a wall consists of:
-    # 1. RPY without wall, plus
-    # 2. A wall correcton
-    # So the way this should be written is that it should call the RPY without wall first, and then add the wall correction
-    # There should be NO CODE DUPLICATION
 
     hj = h * inva
     h_hat = hj / rz
@@ -213,7 +210,6 @@ def single_wall_mobility_trans_trans_numba(r_vectors, h, eta, a):
 
 
 
-# Donev: You will also need this function later when we do microrollers
 @njit(fastmath = True)
 def no_wall_mobility_trans_rot_numba(r_vectors, eta, a):
     ''' 
@@ -266,7 +262,11 @@ def single_wall_mobility_trans_rot_numba(r_vectors, h, eta, a):
 
     This function uses numba.
     '''
+    
+    # Compute mobility without wall:
     M = no_wall_mobility_trans_rot_numba(r_vectors, eta, a)
+    
+    # Now add Swan-Brady wall correction:
     inva = 1.0 / a
     norm_fact_f = 1.0 / (8.0 * np.pi * eta * a**2)
 
@@ -341,8 +341,8 @@ def no_wall_mobility_rot_rot_numba(r_vectors, eta, a):
     else:
         # 27/32 = 0.84375, 5/64 = 0.078125
         c1 = (1.0 - 0.84375 * r + 0.078125 * r3)
-        c2 = 0.28125 * r - 0.046875 * r3       # 9/32 = 0.28125, 3/64 = 0.046875
-        eps = 2.220446049250313e-16 # np.finfo(float).eps
+        c2 = 0.28125 * r - 0.046875 * r3       # 9/32 = 0.28125, 3/64 = 0.046875 # Donev: I think you don't need this
+        eps = 2.220446049250313e-16 # np.finfo(float).eps # Donev: I don't like hard-wired constants
         r_hat = np.sqrt((rx+eps)**2+(ry+eps)**2+(rz+eps)**2)
         rx_hat = rx/r_hat
         ry_hat = ry/r_hat
@@ -369,7 +369,11 @@ def single_wall_mobility_rot_rot_numba(r_vectors, h, eta, a):
 
     This function uses numba.
     '''
+    
+    # Compute mobility without wall:    
     M = no_wall_mobility_rot_rot_numba(r_vectors, eta, a)
+
+    # Now add Swan-Brady wall correction:
     inva = 1.0 / a
     norm_fact_f = 1.0 / (8.0 * np.pi * eta * a**3)
 
