@@ -4,9 +4,11 @@ import scipy.sparse
 
 # Try to import numba
 try:
-  from numba import njit(fastmath = True), prange
+  from numba import njit, prange
 except ImportError:
   print('numba not found')
+
+
 
 
 @njit(fastmath = True)
@@ -76,6 +78,84 @@ def no_wall_mobility_trans_trans_numba(r_vectors, eta, a):
     M[2,0] = M[0,2]
     M[2,1] = M[1,2]
     return M*norm_fact_f
+
+
+
+
+
+
+@njit(fastmath = True, parallel = True)
+def no_wall_mobility_trans_trans_numba_many(r_vectors, eta, a):
+    '''
+    Returns the mobility at the blob level to the force
+    on the blobs. Mobility for particles in an unbounded domain, it uses
+    the standard RPY tensor.
+
+    This function uses numba.
+    '''
+    N = r_vectors // 3
+    r_vectors = r_vectors.reshape(N, 3)
+    M_many = np.zeros((N,N,3,3))
+    fourOverThree = 4.0 / 3.0
+    inva = 1.0 / a
+    norm_fact_f = 1.0 / (8.0 * np.pi * eta * a)
+    for i in prange(N):
+        for j in range(N):
+            
+            # Compute vector between particles i and j
+            # Normalize distance with hydrodynamic radius
+            rx = (r_vectors[i,0]-r_vectors[j,0]) * inva
+            ry = (r_vectors[i,1]-r_vectors[j,1]) * inva
+            rz = (r_vectors[i,2]-r_vectors[j,2]) * inva
+
+
+            # Donev: The code between the two lines is what should be moved to a separate routine that just evaluates the kernel given r(1:3) and force F(1:3)
+            # Donev: Self-mobility should be handled separately as the case of r==0
+            # But also note that you do not have to treat self-mobility separately because the RPY kernel is smooth at r=0 and if written carefully
+            # you can just evaluate it at r=0 without needing different code for r=0. It is worth doing
+            # ----------------------------------------------------------
+            r2 = rx*rx + ry*ry + rz*rz
+            r = np.sqrt(r2)
+
+            # TODO: We should not divide by zero
+            # Donev: This should be inside the r>2 if clause below. For r<2 the formulas do not actually involve 1/r, only r.
+            M = np.zeros((3,3))
+
+            if r > 2:
+                invr = 1.0 / r
+                invr2 = invr * invr
+                c1 = 1.0 + 2.0 / (3.0 * r2)
+                c2 = (1.0 - 2.0 * invr2) * invr2
+                M[0,0] = (c1 + c2*rx*rx) * invr
+                M[0,1] = (c2*rx*ry) * invr
+                M[0,2] = (c2*rx*rz) * invr
+                M[1,1] = (c1 + c2*ry*ry) * invr
+                M[1,2] = (c2*ry*rz) * invr
+                M[2,2] = (c1 + c2*rz*rz) * invr
+            else:
+                # Deal with r->0+
+                eps = 2.220446049250313e-16 # np.finfo(float).eps
+                r_hat = np.sqrt((rx+eps)**2+(ry+eps)**2+(rz+eps)**2)
+                rx_hat = rx/r_hat
+                ry_hat = ry/r_hat
+                rz_hat = rz/r_hat
+                c1 = fourOverThree * (1.0 - 0.28125 * r)  # 9/32 = 0.28125 Exactly
+                # 3/32 = 0.09375 # Donev: It is not needed to use invr here so this can work for r==0
+                c2 = fourOverThree * 0.09375 * r
+                # Donev: Note that 1/r cancels with rx*ry so there is no singularity here for r=0 if you write this differently
+                M[0,0] = c1 + c2 * rx_hat * rx_hat
+                M[0,1] =      c2 * rx_hat * ry_hat
+                M[0,2] =      c2 * rx_hat * rz_hat
+                M[1,1] = c1 + c2 * ry_hat * ry_hat
+                M[1,2] =      c2 * ry_hat * rz_hat
+                M[2,2] = c1 + c2 * rz_hat * rz_hat
+            
+            M[1,0] = M[0,1]
+            M[2,0] = M[0,2]
+            M[2,1] = M[1,2]
+            M.dot(np.random.rand(3)) # mimic the cost of M*f in Floren's code
+            M_many[i,j,:,:] = M*norm_fact_f
+    return M_many
 
 @njit(fastmath = True)
 # Donev: This is the main routine you need to edit since this is the first kernel you will focus on
