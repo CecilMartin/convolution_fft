@@ -25,13 +25,13 @@ def my_test(test_object, number =100):
     start = time.time()
     eval(test_object)
     end = time.time()
-    print("Elapsed (before compilation) = %s" % ((end - start)))
+    # print("Elapsed (before compilation) = %.2e" % ((end - start)))
 
     start = time.time()
     for i in range(number):
         eval(test_object)
     end = time.time()
-    print("Elapsed (after compilation) = %s" % ((end - start)/number))
+    print("Elapsed (after compilation) = %.2e" % ((end - start)/number))
     return 
 
 
