@@ -4,7 +4,7 @@ import scipy.sparse
 
 # Try to import numba
 try:
-  from numba import njit, prange
+  from numba import jit, njit, prange, cfunc
 except ImportError:
   print('numba not found')
 
@@ -12,7 +12,9 @@ eps = np.finfo(float).eps # TODO: Double and single precision
 
 
 # Donev: If numba has an "inline" tag add this tag to this function to encourage inlining it inside loops or other functions
-@njit(inline='always', fastmath = True)
+@jit("f8[:,:](f8[:],f8,f8)", nogil = True, nopython = True, inline='always', fastmath = True, parallel = True)
+# @cfunc("f8[:,:](f8[:],f8,f8)")
+# @njit
 def no_wall_mobility_trans_trans_numba(r_vectors, eta, a):
     '''
     Returns the mobility at the blob level to the force
@@ -72,7 +74,7 @@ def no_wall_mobility_trans_trans_numba(r_vectors, eta, a):
 
 
 
-@njit(inline='always', fastmath = True)
+@njit(parallel = True, inline='always', fastmath = True)
 def no_wall_mobility_trans_trans_numba_many(r_vectors, eta, a):
     '''
     Returns the mobility at the blob level to the force
@@ -87,7 +89,9 @@ def no_wall_mobility_trans_trans_numba_many(r_vectors, eta, a):
     M_many = np.zeros((N,N,3,3))
     inva = 1.0 / a
     norm_fact_f = 1.0 / (8.0 * np.pi * eta * a)
-    for i in range(N):
+    force = np.random.rand(N,3)
+    u = np.zeros((N,3))
+    for i in prange(N):
         for j in range(N):
             
             # Compute vector between particles i and j
@@ -129,7 +133,10 @@ def no_wall_mobility_trans_trans_numba_many(r_vectors, eta, a):
             M[1,0] = M[0,1]
             M[2,0] = M[0,2]
             M[2,1] = M[1,2]
-            M.dot(np.random.rand(3)) # mimic the cost of M*f in Floren's code
+            # M.dot(force[j,:])
+            u[i,:] += (M[0,0] * force[j,0] + M[0,1] * force[j,1] + M[0,2] * force[j,2]) * norm_fact_f
+            u[i,:] += (M[1,0] * force[j,0] + M[1,1] * force[j,1] + M[1,2] * force[j,2]) * norm_fact_f
+            u[i,:] += (M[2,0] * force[j,0] + M[2,1] * force[j,1] + M[2,2] * force[j,2]) * norm_fact_f
             M_many[i,j,:,:] = M*norm_fact_f
     return M_many
 
@@ -173,6 +180,12 @@ def no_wall_mobility_trans_trans_numba_many_no_matrix(r_vectors, force, eta, a):
                 Myy = (c1 + c2*ry*ry) * invr
                 Myz = (c2*ry*rz) * invr
                 Mzz = (c1 + c2*rz*rz) * invr
+                # M[0,0] = (c1 + c2*rx*rx) * invr
+                # M[0,1] = (c2*rx*ry) * invr
+                # M[0,2] = (c2*rx*rz) * invr
+                # M[1,1] = (c1 + c2*ry*ry) * invr
+                # M[1,2] = (c2*ry*rz) * invr
+                # M[2,2] = (c1 + c2*rz*rz) * invr
             else:
                 # Deal with r->0+
                 # eps = np.finfo(float).eps # TODO:Double and single precision
@@ -188,14 +201,26 @@ def no_wall_mobility_trans_trans_numba_many_no_matrix(r_vectors, force, eta, a):
                 Myy = c1 + c2 * ry_hat * ry_hat
                 Myz =      c2 * ry_hat * rz_hat
                 Mzz = c1 + c2 * rz_hat * rz_hat
+                # M[0,0] = c1 + c2 * rx_hat * rx_hat
+                # M[0,1] =      c2 * rx_hat * ry_hat
+                # M[0,2] =      c2 * rx_hat * rz_hat
+                # M[1,1] = c1 + c2 * ry_hat * ry_hat
+                # M[1,2] =      c2 * ry_hat * rz_hat
+                # M[2,2] = c1 + c2 * rz_hat * rz_hat
             
             Myx = Mxy
             Mzx = Mxz
             Mzy = Myz
+            # M[1,0] = M[0,1]
+            # M[2,0] = M[0,2]
+            # M[2,1] = M[1,2]
             
             u[i,0] += (Mxx * force[j,0] + Mxy * force[j,1] + Mxz * force[j,2]) * norm_fact_f
             u[i,1] += (Myx * force[j,0] + Myy * force[j,1] + Myz * force[j,2]) * norm_fact_f
             u[i,2] += (Mzx * force[j,0] + Mzy * force[j,1] + Mzz * force[j,2]) * norm_fact_f
+            # u[i,0] += (M[0,0] * force[j,0] + M[0,1] * force[j,1] + M[0,2] * force[j,2]) * norm_fact_f
+            # u[i,1] += (M[1,0] * force[j,0] + M[1,1] * force[j,1] + M[1,2] * force[j,2]) * norm_fact_f
+            # u[i,2] += (M[2,0] * force[j,0] + M[2,1] * force[j,1] + M[2,2] * force[j,2]) * norm_fact_f
                     
             # M.dot(np.random.rand(3)) # mimic the cost of M*f in Floren's code
             # M_many[i,j,:,:] = M*norm_fact_f

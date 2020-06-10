@@ -46,16 +46,17 @@ for i in range(num):
         source_location[0,0] = np.random.rand(1)*(Lx-r)
         source_location[1,0] = np.random.rand(1)*(Ly-r)
         # source_location[2,:] = h
-        # theta = np.random.rand(1)*np.pi/2
-        theta = 0
+        theta = np.random.rand(1)*np.pi/2
+        # theta = 0
         source_location[0,1] = source_location[0,0] + r*np.cos(theta)
         source_location[1,1] = source_location[1,0] + r*np.sin(theta)
 
         # source_strength = np.array([-np.cos(theta),-np.sin(theta),np.cos(theta),np.sin(theta)])
-        # source_strength = source_strength.reshape((2,2))
+        source_strength = np.array([np.cos(theta),np.sin(theta),0,0])
+        source_strength = source_strength.reshape((2,2))
         # source_strength = np.random.rand(2,2)
-        source_strength = np.zeros((2,1))
-        source_strength[0,0] = 1
+        # source_strength = np.zeros((2,1))
+        # source_strength[0,0] = 1
         
 
         x = np.linspace(0, nx-1, nx)*Lx/nx
